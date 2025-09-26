@@ -79,9 +79,9 @@ list(FILTER SRC EXCLUDE REGEX "${CMAKE_CURRENT_SOURCE_DIR}/src/backward(\.cpp|\.
 find_package(Doxygen)
 set(DOXYGEN_GENERATE_HTML YES)
 set(DOXYGEN_GENERATE_MAN YES)
+set(DOXYGEN_OUTPUT_DIRECTORY "./docs")
 doxygen_add_docs(
         "docs"
         ${SRC}
         ALL
-        WORKING_DIRECTORY "./docs"
     )
