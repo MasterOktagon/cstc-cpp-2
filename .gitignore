@@ -16,6 +16,7 @@ bin
 html
 CMakeDoxyFile.in
 CMakeDoxygenDefaults.cmake
+.vscode
 
 # CLion
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
