@@ -19,3 +19,4 @@ CMakeDoxygenDefaults.cmake
 .vscode
 CMakeDoxyfile.in
 Doxyfile.docs
+docs/man

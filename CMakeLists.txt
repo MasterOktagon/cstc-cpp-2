@@ -1,8 +1,8 @@
 
 cmake_minimum_required(VERSION 3.5)
-project( proj )
+project( cstc-2 )
 
-set(ExecutableName "name")
+set(ExecutableName "cstc")
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build)
@@ -55,7 +55,7 @@ if (${Catch2_FOUND})
     # for tests no main file
     list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
     add_executable(${TestName} ${SRC})
-    target_compile_options(${TestName} PRIVATE -g -ggdb -DCATCH2 -DCATCH2_VERSION=${Catch2_VERSION_MAJOR} -Wno-literal-suffix -Wno-unused-parameter -fstrict-enums)
+    target_compile_options(${TestName} PRIVATE -g -ggdb -DCATCH2 -DCATCH2_VERSION=${Catch2_VERSION_MAJOR} -fstrict-enums)
     # NOTE: for tests no compiler warnings are required, since these will be emitted by the main file already
     target_link_libraries(${TestName} PRIVATE Catch2::Catch2WithMain)
 
@@ -74,12 +74,14 @@ endif()
 # Doxygen
 
 list(FILTER SRC EXCLUDE REGEX "${CMAKE_CURRENT_SOURCE_DIR}/lib/.*")
-list(FILTER SRC EXCLUDE REGEX "${CMAKE_CURRENT_SOURCE_DIR}/src/backward(\.cpp|\.hpp)")
+list(FILTER SRC EXCLUDE REGEX ".*/src/backward.*")
+list(FILTER SRC EXCLUDE REGEX ".*/src/snippets\.hpp")
 
 find_package(Doxygen)
 set(DOXYGEN_GENERATE_HTML YES)
 set(DOXYGEN_GENERATE_MAN YES)
 set(DOXYGEN_OUTPUT_DIRECTORY "./docs")
+set(DOXYGEN_QUIET YES)
 doxygen_add_docs(
         "docs"
         ${SRC}
