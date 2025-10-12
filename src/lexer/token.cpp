@@ -3,8 +3,11 @@
 
 #include "../snippets.hpp"
 
+#include <algorithm>
 #include <memory>
+#include <stack>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using namespace std;
@@ -48,10 +51,17 @@ string lexer::TokenStream::_str() const {
 
 /// \brief construct a new Match
 ///
-lexer::TokenStream::Match::Match(uint64 at, bool found, const TokenStream* on) {
+lexer::TokenStream::Match::Match(uint64 at, const TokenStream* on) {
     this->at        = at;
-    this->was_found = found;
+    this->was_found = false;
     this->on        = on;
+}
+
+/// \brief construct a new Match
+///
+lexer::TokenStream::Match::Match(bool){
+    this->was_found = false;
+    this->at = 0;
 }
 
 /// \brief construct a new TokenStream
@@ -106,3 +116,47 @@ lexer::Token lexer::TokenStream::get(int64 idx) const {
     if (tokens == nullptr) { return nullToken; }
     return tokens->at(start + idx);
 }
+
+lexer::TokenStream::Match lexer::TokenStream::splitStack(
+    initializer_list<lexer::Token::Type> sep,
+    uint64                               start_idx,
+    map<lexer::Token::Type, lexer::Token::Type> mapping) const {
+
+        map<lexer::Token::Type, lexer::Token::Type> mapping_rev = mapping;
+        reverse(mapping_rev.begin(), mapping_rev.end());
+
+        stack<lexer::Token::Type> typestack = {};
+
+        uint32 idx = 0;
+        for(;idx < size(); idx++){
+            Token& t = tokens->at(idx);
+            if (typestack.size() == 0 and find(sep.begin(), sep.end(), t)) {
+                return Match(idx, this);
+            }
+
+            if (mapping.count(t.type)){
+                typestack.push(t.type);
+            }
+            else if (mapping_rev.count(t.type)){
+                if (typestack.top() == mapping_rev[t.type]){
+                    typestack.push(t.type);
+                }
+                else {
+                    // ERROR
+                }
+                typestack.pop();
+            }
+
+            if (typestack.size() == 0 and find(sep.begin(), sep.end(), t)) {
+                return Match(idx, this);
+            }
+        }
+        while (not typestack.empty()){
+            // ERROR
+            typestack.pop();
+        }
+
+        return false;
+    }
+
+
