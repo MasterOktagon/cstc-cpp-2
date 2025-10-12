@@ -144,7 +144,6 @@ lexer::TokenStream::Match lexer::TokenStream::splitStack(
     map<lexer::Token::Type, lexer::Token::Type> mapping) const {
 
         map<lexer::Token::Type, lexer::Token::Type> mapping_rev = invert(mapping);
-
         stack<lexer::Token::Type> typestack = {};
 
         uint32 idx = start_idx;
@@ -197,6 +196,14 @@ TEST_CASE ("Testing lexer::TokenStream::splitStack", "[tokens]") {
 
         REQUIRE(not m.found());
     }
+    SECTION("checking splitting at front"){
+        vector<lexer::Token> tokens = {lexer::Token::COMMA,lexer::Token::INT};
+        lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
+        lexer::TokenStream::Match m = t.splitStack({lexer::Token::COMMA});
+
+        REQUIRE(m.found());
+        REQUIRE((int64)m == 0);
+    }
 }
 
 lexer::TokenStream::Match lexer::TokenStream::rsplitStack(
@@ -205,7 +212,6 @@ lexer::TokenStream::Match lexer::TokenStream::rsplitStack(
     map<lexer::Token::Type, lexer::Token::Type> mapping_rev) const {
 
         map<lexer::Token::Type, lexer::Token::Type> mapping = invert(mapping_rev);
-
         stack<lexer::Token::Type> typestack = {};
 
         int32 idx = size()-1;
@@ -269,10 +275,10 @@ vector<lexer::TokenStream> lexer::TokenStream::list(initializer_list<lexer::Toke
     lexer::TokenStream::Match m = splitStack(sep);
 
     while (m.found()){
-        lexer::TokenStream tokens = m.before();
+        lexer::TokenStream tokens = slice(start_idx, m);
         if (not allow_empty and tokens.empty()){
             // ERROR
-        } else {
+        } else if (not tokens.empty()) {
             streams.push_back(tokens);
         }
         start_idx = m+1;
@@ -295,7 +301,11 @@ TEST_CASE ("Testing lexer::TokenStream::list", "[tokens]") {
                                     lexer::Token::COMMA,lexer::Token::OPEN,lexer::Token::COMMA, lexer::Token::CLOSE,
                                     lexer::Token::COMMA,lexer::Token::INT};
     lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
-    vector<lexer::TokenStream> result = t.list({lexer::Token::COMMA});
+    vector<lexer::TokenStream> result = t.list({lexer::Token::COMMA}, true);
 
     REQUIRE(result.size() == 4);
+    REQUIRE(result[0].size() == 1);
+    REQUIRE(result[1].size() == 1);
+    REQUIRE(result[2].size() == 3);
+    REQUIRE(result[3].size() == 1);
 }
