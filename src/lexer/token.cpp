@@ -117,20 +117,39 @@ lexer::Token lexer::TokenStream::get(int64 idx) const {
     return tokens->at(start + idx);
 }
 
+<<<<<<< HEAD
+=======
+/// \brief flip values of a pair
+template<typename A, typename B>
+pair<B,A> flip(const pair<A,B>& p)
+{
+    return pair<B,A>(p.second, p.first);
+}
+
+/// \brief flip values of a std::map
+template<typename A, typename B>
+map<B,A> invert(const map<A,B>& src)
+{
+    map<B,A> dst;
+    transform(src.begin(), src.end(), inserter(dst, dst.begin()), 
+                   flip<A,B>);
+    return dst;
+}
+
+
 lexer::TokenStream::Match lexer::TokenStream::splitStack(
     initializer_list<lexer::Token::Type> sep,
     uint64                               start_idx,
     map<lexer::Token::Type, lexer::Token::Type> mapping) const {
 
-        map<lexer::Token::Type, lexer::Token::Type> mapping_rev = mapping;
-        reverse(mapping_rev.begin(), mapping_rev.end());
+        map<lexer::Token::Type, lexer::Token::Type> mapping_rev = invert(mapping);
 
         stack<lexer::Token::Type> typestack = {};
 
-        uint32 idx = 0;
+        uint32 idx = start_idx;
         for(;idx < size(); idx++){
             Token& t = tokens->at(idx);
-            if (typestack.size() == 0 and find(sep.begin(), sep.end(), t)) {
+            if (typestack.size() == 0 and find(sep.begin(), sep.end(), t.type) != sep.end()) {
                 return Match(idx, this);
             }
 
@@ -138,16 +157,13 @@ lexer::TokenStream::Match lexer::TokenStream::splitStack(
                 typestack.push(t.type);
             }
             else if (mapping_rev.count(t.type)){
-                if (typestack.top() == mapping_rev[t.type]){
-                    typestack.push(t.type);
-                }
-                else {
+                if (typestack.top() != mapping_rev[t.type]){
                     // ERROR
                 }
                 typestack.pop();
             }
 
-            if (typestack.size() == 0 and find(sep.begin(), sep.end(), t)) {
+            if (typestack.size() == 0 and find(sep.begin(), sep.end(), t.type) != sep.end()) {
                 return Match(idx, this);
             }
         }
@@ -159,4 +175,116 @@ lexer::TokenStream::Match lexer::TokenStream::splitStack(
         return false;
     }
 
+<<<<<<< HEAD
+=======
+TEST_CASE ("Testing lexer::TokenStream::splitStack", "[tokens]") {
+    SECTION("checking positive example"){
+        // create TokenStream
+        vector<lexer::Token> tokens = {lexer::Token::OPEN,lexer::Token::COMMA,lexer::Token::CLOSE,lexer::Token::COMMA,lexer::Token::INT, lexer::Token::COMMA, lexer::Token::INT};
+        lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
+        lexer::TokenStream::Match m = t.splitStack({lexer::Token::COMMA});
+
+        REQUIRE(m.found());
+        REQUIRE((int64)m == 3);
+        REQUIRE(m.before().size() == 3);
+        REQUIRE(m.after().size() == 3);
+    }
+    SECTION("checking negaitve example"){
+        vector<lexer::Token> tokens = {lexer::Token::OPEN,lexer::Token::COMMA,lexer::Token::CLOSE};
+        lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
+        lexer::TokenStream::Match m = t.splitStack({lexer::Token::COMMA});
+
+        REQUIRE(not m.found());
+    }
+}
+
+lexer::TokenStream::Match lexer::TokenStream::rsplitStack(
+    initializer_list<lexer::Token::Type> sep,
+    uint64                               start_idx,
+    map<lexer::Token::Type, lexer::Token::Type> mapping_rev) const {
+
+        map<lexer::Token::Type, lexer::Token::Type> mapping = invert(mapping_rev);
+
+        stack<lexer::Token::Type> typestack = {};
+
+        int32 idx = size()-1;
+        for(;idx >= 0; idx--){
+            Token& t = tokens->at(idx);
+            if (typestack.size() == 0 and find(sep.begin(), sep.end(), t.type) != sep.end()) {
+                return Match(idx, this);
+            }
+
+            if (mapping.count(t.type)){
+                typestack.push(t.type);
+            }
+            else if (mapping_rev.count(t.type)){
+                if (typestack.top() != mapping_rev[t.type]){
+                    // ERROR
+                }
+                typestack.pop();
+            }
+
+            if (typestack.size() == 0 and find(sep.begin(), sep.end(), t.type) != sep.end()) {
+                return Match(idx, this);
+            }
+        }
+        while (not typestack.empty()){
+            // ERROR
+            typestack.pop();
+        }
+
+        return false;
+    }
+
+TEST_CASE ("Testing lexer::TokenStream::rsplitStack", "[tokens]") {
+    SECTION("checking positive example"){
+        // create TokenStream
+        vector<lexer::Token> tokens = {lexer::Token::COMMA,lexer::Token::INT, lexer::Token::COMMA, lexer::Token::INT,lexer::Token::OPEN,lexer::Token::COMMA,lexer::Token::CLOSE};
+        lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
+        lexer::TokenStream::Match m = t.rsplitStack({lexer::Token::COMMA});
+
+        REQUIRE(m.found());
+        REQUIRE((int64)m == 2);
+        REQUIRE(m.before().size() == 2);
+        REQUIRE(m.after().size() == 4);
+    }
+    SECTION("checking negaitve example"){
+        vector<lexer::Token> tokens = {lexer::Token::OPEN,lexer::Token::COMMA,lexer::Token::CLOSE};
+        lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
+        lexer::TokenStream::Match m = t.rsplitStack({lexer::Token::COMMA});
+
+        REQUIRE(not m.found());
+    }
+}
+
+
+/// \brief split this Tokenstream on every occurance of a specific type
+///
+/// \param sep list of tokens to be seperated at
+/// \param allow_empty whether to allow empty blocks
+vector<lexer::TokenStream> lexer::TokenStream::list(initializer_list<lexer::Token::Type> sep, bool allow_empty) const {
+    vector<lexer::TokenStream> streams = {}; 
+    uint64 start_idx = 0;
+    lexer::TokenStream::Match m = splitStack(sep);
+
+    while (m.found()){
+        lexer::TokenStream tokens = m.before();
+        if (not allow_empty and tokens.empty()){
+            // ERROR
+        } else {
+            streams.push_back(tokens);
+        }
+        start_idx = m+1;
+        m = splitStack(sep, start_idx);
+    }
+    lexer::TokenStream tokens = slice(start_idx, size());
+    if (not allow_empty and tokens.empty()){
+        // ERROR
+    } else {
+        streams.push_back(tokens);
+    }
+
+    return streams;
+}
+>>>>>>> 9fd26d0 (ADD: token::splitStack)
 
