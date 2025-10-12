@@ -5,7 +5,6 @@
 #include <map>
 #include <memory>
 #include <string>
-#include <type_traits>
 #include <vector>
 
 using namespace std;
@@ -169,6 +168,9 @@ namespace lexer {
                   sptr<Token>  expanded = nullptr,
                   sptr<string> include  = nullptr);
 
+            /// \brief construct a token from a type. ONLY FOR TEST CASES!
+            Token(Type type) { this->type = type; }
+
             virtual ~Token() = default;
 
             /// \brief compare two Tokens
@@ -288,9 +290,9 @@ namespace lexer {
             /// \param sep list of Token::Type that will split this tokenstream
             /// \param start_idx at which index to start
             /// \param mapping map of paired Token::Type. first is open, second is close
-            Match splitStack(initializer_list<lexer::Token::Type> sep,
-                             uint64                               start_idx      = 0,
-                             map<lexer::Token::Type, lexer::Token::Type> mapping = {
+            Match splitStack(initializer_list<lexer::Token::Type>        sep,
+                             uint64                                      start_idx = 0,
+                             map<lexer::Token::Type, lexer::Token::Type> mapping   = {
                                  {lexer::Token::OPEN,       lexer::Token::CLOSE      },
                                  {lexer::Token::INDEX_OPEN, lexer::Token::INDEX_CLOSE},
                                  {lexer::Token::BLOCK_OPEN, lexer::Token::BLOCK_CLOSE}
@@ -302,9 +304,9 @@ namespace lexer {
             /// \param sep list of Token::Type that will split this tokenstream
             /// \param start_idx at which index to start
             /// \param mapping map of paired Token::Type. first is open, second is close
-            Match rsplitStack(initializer_list<lexer::Token::Type> sep,
-                              uint64                               start_idx      = 0,
-                              map<lexer::Token::Type, lexer::Token::Type> mapping = {
+            Match rsplitStack(initializer_list<lexer::Token::Type>        sep,
+                              uint64                                      start_idx = 0,
+                              map<lexer::Token::Type, lexer::Token::Type> mapping   = {
                                   {lexer::Token::OPEN,       lexer::Token::CLOSE      },
                                   {lexer::Token::INDEX_OPEN, lexer::Token::INDEX_CLOSE},
                                   {lexer::Token::BLOCK_OPEN, lexer::Token::BLOCK_CLOSE}
@@ -319,9 +321,8 @@ namespace lexer {
             ///
             /// \param sep list of tokens to be seperated at
             /// \param allow_empty whether to allow empty blocks
-            vector<lexer::TokenStream> list(initializer_list<lexer::Token::Type> sep, bool allow_empty=false)
-            const;
+            vector<lexer::TokenStream> list(initializer_list<lexer::Token::Type> sep, bool allow_empty = false) const;
 
-            //Match operator[](lexer::Token::Type type) { return split({type}); }
+            // Match operator[](lexer::Token::Type type) { return split({type}); }
     };
 } // namespace lexer

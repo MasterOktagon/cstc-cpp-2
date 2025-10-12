@@ -74,7 +74,7 @@ inline std::string operator""_s(const char* c, usize) {
     #define TEMPLATE_TEST_CASE(a, b, ...)                                                                      \
         [[maybe_unused]] CONCAT(_test_case_,                                                                         \
                           CONCAT(__COUNTER__, CONCAT(_, __LINE__)))(const char* a, const char* b, __VA_ARGS__)
-    #define REQUIRE(a)
+    #define REQUIRE(a) if(a){}
     #define BENCHMARK(a)
     #define SECTION(a)
     #define GENERATE(a, ...) a

@@ -7,7 +7,6 @@
 #include <memory>
 #include <stack>
 #include <string>
-#include <type_traits>
 #include <vector>
 
 using namespace std;
@@ -38,10 +37,12 @@ bool lexer::Token::operator==(Token other) {
 bool lexer::Token::operator!=(Token other) {
     return !(other == *this);
 }
+
 /// \brief create a string representation
 string lexer::Token::_str() const {
     return value;
 }
+
 /// \brief create a string representation
 string lexer::TokenStream::_str() const {
     string s;
@@ -53,15 +54,15 @@ string lexer::TokenStream::_str() const {
 ///
 lexer::TokenStream::Match::Match(uint64 at, const TokenStream* on) {
     this->at        = at;
-    this->was_found = false;
+    this->was_found = true;
     this->on        = on;
 }
 
 /// \brief construct a new Match
 ///
-lexer::TokenStream::Match::Match(bool){
+lexer::TokenStream::Match::Match(bool) {
     this->was_found = false;
-    this->at = 0;
+    this->at        = 0;
 }
 
 /// \brief construct a new TokenStream
@@ -80,7 +81,7 @@ TEST_CASE ("Testing lexer::TokenStream::TokenStream", "[tokens]") {
     // create TokenStream
     vector<lexer::Token> tokens = {lexer::Token(), lexer::Token()};
     lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
-    REQUIRE(t.size() == 2);
+REQUIRE(t.size() == 2);
     REQUIRE(t.start == 0);
     REQUIRE(t.stop == 2);
 }
@@ -288,3 +289,13 @@ vector<lexer::TokenStream> lexer::TokenStream::list(initializer_list<lexer::Toke
 }
 >>>>>>> 9fd26d0 (ADD: token::splitStack)
 
+TEST_CASE ("Testing lexer::TokenStream::list", "[tokens]") {
+    vector<lexer::Token> tokens = {lexer::Token::COMMA,lexer::Token::INT,
+                                    lexer::Token::COMMA,lexer::Token::INT,
+                                    lexer::Token::COMMA,lexer::Token::OPEN,lexer::Token::COMMA, lexer::Token::CLOSE,
+                                    lexer::Token::COMMA,lexer::Token::INT};
+    lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
+    vector<lexer::TokenStream> result = t.list({lexer::Token::COMMA});
+
+    REQUIRE(result.size() == 4);
+}
