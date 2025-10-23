@@ -118,8 +118,6 @@ lexer::Token lexer::TokenStream::get(int64 idx) const {
     return tokens->at(start + idx);
 }
 
-<<<<<<< HEAD
-=======
 /// \brief flip values of a pair
 template<typename A, typename B>
 pair<B,A> flip(const pair<A,B>& p)
@@ -175,8 +173,6 @@ lexer::TokenStream::Match lexer::TokenStream::splitStack(
         return false;
     }
 
-<<<<<<< HEAD
-=======
 TEST_CASE ("Testing lexer::TokenStream::splitStack", "[tokens]") {
     SECTION("checking positive example"){
         // create TokenStream
@@ -293,7 +289,6 @@ vector<lexer::TokenStream> lexer::TokenStream::list(initializer_list<lexer::Toke
 
     return streams;
 }
->>>>>>> 9fd26d0 (ADD: token::splitStack)
 
 TEST_CASE ("Testing lexer::TokenStream::list", "[tokens]") {
     vector<lexer::Token> tokens = {lexer::Token::COMMA,lexer::Token::INT,
