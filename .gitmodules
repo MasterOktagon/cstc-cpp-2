@@ -1,3 +1,6 @@
 [submodule "lib/backward-cpp"]
 	path = lib/backward-cpp
 	url = https://github.com/bombela/backward-cpp
+[submodule "lib/argparse"]
+	path = lib/argparse
+	url = https://github.com/p-ranav/argparse

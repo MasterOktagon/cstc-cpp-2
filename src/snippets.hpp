@@ -76,7 +76,7 @@ inline std::string operator""_s(const char* c, usize) {
                           CONCAT(__COUNTER__, CONCAT(_, __LINE__)))(const char* a, const char* b, __VA_ARGS__)
     #define REQUIRE(a) if(a){}
     #define BENCHMARK(a)
-    #define SECTION(a)
+    #define SECTION(a) if(a)
     #define GENERATE(a, ...) a
 #else
 
@@ -108,4 +108,11 @@ inline std::string _strp(Repr* r) {
 inline std::string str(Repr& r) {
     return _strp(&r);
 }
+
+inline std::string str(Repr* r) {
+    return _strp(r);
+}
+
+#define instanceOf(el, of) ((of*) el.get() == dynamic_cast<of*>(el.get()))
+#define cast2(a, to)       (std::dynamic_pointer_cast<to>(a))
 
