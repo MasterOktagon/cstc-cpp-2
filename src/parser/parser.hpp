@@ -8,7 +8,7 @@
 //
 
 #include "../lexer/token.hpp"
-#include "../snippets.h"
+#include "../snippets.hpp"
 #include "ast/ast.hpp"
 #include "symboltable.hpp"
 
@@ -29,10 +29,10 @@ namespace parser {
      *
      * @return index after which to split. returns size of tokens if nothing was found
      */
-    extern uint64 splitStack(std::vector<lexer::Token>                 tokens,
-                             std::initializer_list<lexer::Token::Type> delimiter,
+    extern uint64 splitStack(vector<lexer::Token>                 tokens,
+                             initializer_list<lexer::Token::Type> delimiter,
                              int                                       local,
-                             std::initializer_list<lexer::Token::Type> = {});
+                             initializer_list<lexer::Token::Type> = {});
 
     /**
      * @brief split a vector of tokens until a certain token was found. uses index, block and paranthesisises as descent
@@ -45,10 +45,10 @@ namespace parser {
      *
      * @return index after which to split. returns size of tokens if nothing was found
      */
-    extern uint64 rsplitStack(std::vector<lexer::Token>                 tokens,
-                              std::initializer_list<lexer::Token::Type> delimiter,
+    extern uint64 rsplitStack(vector<lexer::Token>                 tokens,
+                              initializer_list<lexer::Token::Type> delimiter,
                               int                                       local,
-                              std::initializer_list<lexer::Token::Type> = {});
+                              initializer_list<lexer::Token::Type> = {});
 
     /**
      * @brief parse one of these functions
@@ -62,19 +62,19 @@ namespace parser {
      * @return An AST Node or nullptr if no match was found
      */
     extern sptr<AST> parseOneOf(lexer::TokenStream                tokens,
-                                std::vector<PARSER_FN_NO_DEFAULT> functions,
+                                vector<PARSER_FN_NO_DEFAULT> functions,
                                 int                               local,
                                 symbol::Namespace*                sr,
-                                String                            expected_type);
+                                string                            expected_type);
 
     /**
      * @brief get a (new) subvector from another vector
      */
     template <typename T>
-    std::vector<T> subvector(std::vector<T> v, int start, int, int stop) {
+    vector<T> subvector(vector<T> v, int start, int, int stop) {
         auto s   = v.begin() + start;
         auto end = v.begin() + stop;
-        return std::vector<T>(s, end);
+        return vector<T>(s, end);
     }
 
     //extern bool   typeEq(CstType a, CstType b);
@@ -84,10 +84,10 @@ namespace parser {
     /**
      * @brief check if a text matches this case
      */
-    extern bool is_snake_case(String text);
-    extern bool isPascalCase(String text);
-    extern bool IsCamelCase(String text);
-    extern bool IS_UPPER_CASE(String text);
+    extern bool is_snake_case(string text);
+    extern bool isPascalCase(string text);
+    extern bool IsCamelCase(string text);
+    extern bool IS_UPPER_CASE(string text);
 
     /**
      * virtual @enum that shows what modifiers were found
@@ -96,7 +96,9 @@ namespace parser {
         NONE    = 0,
         CONST   = 1,
         MUTABLE = 2,
-        STATIC  = 4
+        STATIC  = 4,
+
+        END = 8// for iteration
     };
 
     /**
@@ -107,11 +109,11 @@ namespace parser {
     /**
      * @brief get one or more modifiers from a list of tokens and REMOVE THEM FROM THE VECTOR
      */
-    extern Modifier getModifier(lexer::TokenStream* tokens);
+    extern Modifier getModifier(lexer::TokenStream& tokens);
 
     /**
      * @brief check if an identifier is allowed as a name
     */
-    extern void checkName(String name, lexer::Token where);
+    extern void checkName(string name, lexer::Token where);
 } // namespace parser
 

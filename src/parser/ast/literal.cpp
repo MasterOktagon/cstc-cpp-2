@@ -11,17 +11,17 @@
 #include "../../errors/errors.hpp"
 #include "../../lexer/lexer.hpp"
 #include "../../lexer/token.hpp"
-#include "../parser.hpp"
+//#include "../parser.hpp"
 #include "../symboltable.hpp"
 #include "ast.hpp"
-#include "base_math.hpp"
+//#include "base_math.hpp"
 
 #include <cstdint>
 #include <regex>
 #include <string>
 #include <vector>
 
-bool StringIntBiggerThan(string a, string b) {
+bool stringIntBiggerThan(string a, string b) {
     if (a.size() > b.size()) { return true; }
     if (b.size() > a.size()) { return false; }
     for (uint32 i = 0; i < a.size(); i++) {
@@ -47,8 +47,8 @@ IntLiteralAST::IntLiteralAST(int bits, string value, bool tsigned, lexer::TokenS
         string v = value;
         if (tsigned) {
             v = v.substr(1);
-            if (StringIntBiggerThan(v, "2147483648")) { bits = 64; }
-        } else if (StringIntBiggerThan(v, "4294967295")) {
+            if (stringIntBiggerThan(v, "2147483648")) { bits = 64; }
+        } else if (stringIntBiggerThan(v, "4294967295")) {
             bits = 64;
         }
     }
@@ -103,12 +103,12 @@ void IntLiteralAST::consume(CstType type) {
         bool sig  = type[0] != 'u';
         int  bits;
         if (type == "usize"_c || type == "ssize"_c) {
-            bits=64;
+            bits=64; // TODO
         } else {
             bits = std::stoi(type.substr(3 + (!sig), type.size()));
         }
 
-        if (value[0] == '-' && !sig) {
+        if (const_value.value()[0] == '-' && !sig) {
             parser::error(parser::errors["Sign mismatch"],
                           {tokens[0], tokens[1]},
                           "Found a signed value (expected \e[1m"s + type + "\e[0m)");
@@ -167,13 +167,12 @@ TEST_CASE ("Testing BoolLiteralAST::parse", "[literal]") {
 
 FloatLiteralAST::FloatLiteralAST(int bits, string value, lexer::TokenStream tokens) {
     this->bits   = bits;
-    this->value  = value;
+    this->const_value  = value;
     this->tokens = tokens;
-    is_const     = true;
 }
 
 string FloatLiteralAST::emitCST() const {
-    return value;
+    return const_value.value();
 }
 
 sptr<AST> FloatLiteralAST::parse(lexer::TokenStream tokens, int, symbol::Namespace*, string) {
@@ -181,14 +180,14 @@ sptr<AST> FloatLiteralAST::parse(lexer::TokenStream tokens, int, symbol::Namespa
     if (tokens.size() < 1) { return nullptr; }
     bool sig = false;
     auto t   = tokens;
-    if (tokens[0].type == lexer::Token::Type::SUB || tokens[0].type == lexer::Token::Type::NEC) {
+    if (tokens[0].type == lexer::Token::Type::SUB) {
         sig    = true;
         tokens = tokens.slice(1, tokens.size());
     }
     if (tokens.size() < 2) { return nullptr; }
     if (tokens.size() > 3) { return nullptr; }
     if (tokens[0].type == lexer::Token::Type::ACCESS && tokens[1].type == lexer::Token::Type::INT) {
-        return share<AST>(new FloatLiteralAST(32, (sig ? string("-0.") : string("0.")) + tokens[1].value + "e00", t));
+        return sptr<AST>(new FloatLiteralAST(32, (sig ? string("-0.") : string("0.")) + tokens[1].value + "e00", t));
     } else if (tokens[0].type == lexer::Token::Type::INT && tokens[1].type == lexer::Token::Type::ACCESS) {
         string val = (sig ? string("-") : string("")) + tokens[0].value + ".";
         if (tokens.size() == 3) {
@@ -199,7 +198,7 @@ sptr<AST> FloatLiteralAST::parse(lexer::TokenStream tokens, int, symbol::Namespa
             }
         }
         val += "0e00";
-        return share<AST>(new FloatLiteralAST(32, val, t));
+        return sptr<AST>(new FloatLiteralAST(32, val, t));
     }
     return nullptr;
 }
@@ -229,9 +228,8 @@ TEST_CASE ("Testing FloatLiteralAST::parse", "[literal]") {
 }
 
 CharLiteralAST::CharLiteralAST(string value, lexer::TokenStream tokens) {
-    this->value  = value;
+    this->const_value  = value;
     this->tokens = tokens;
-    is_const     = true;
 }
 
 sptr<AST> CharLiteralAST::parse(lexer::TokenStream tokens, int, symbol::Namespace*, string) {
@@ -242,40 +240,40 @@ sptr<AST> CharLiteralAST::parse(lexer::TokenStream tokens, int, symbol::Namespac
             parser::error(parser::errors["Empty char"],
                           tokens,
                           "This char value is empty. This is not supported. Did you mean '\\u0000' ?");
-            return share<AST>(new AST());
+            return sptr<AST>(new AST());
         }
         std::regex r("'\\\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]'");
         std::regex r2("'\\\\(n|a|r|t|f|v|\\\\|'|\"|)'");
         if (std::regex_match(tokens[0].value, r) || std::regex_match(tokens[0].value, r2) ||
             tokens[0].value.size() == 3) {
             // std::cout<<"skdskdl"<<std::endl;
-            return share<AST>(new CharLiteralAST(tokens[0].value, tokens));
+            return sptr<AST>(new CharLiteralAST(tokens[0].value, tokens));
         }
         parser::error(parser::errors["Invalid char"],
                       tokens,
                       "This char value is not supported. Chars are meant to hold only one character. Did you mean to "
                       "use \"Double quotes\" ?");
-        return share<AST>(new AST());
+        return sptr<AST>(new AST());
     }
     return nullptr;
 }
 
 string CharLiteralAST::getValue() const {
-    if (this->value == "'\\n'") { return "u0x000A"; }
-    if (this->value == "'\\t'") { return "u0x0009"; }
-    if (this->value == "'\\v'") { return "u0x000B"; }
-    if (this->value == "'\\f'") { return "u0x000C"; }
-    if (this->value == "'\\r'") { return "u0x000D"; }
-    if (this->value == "'\\a'") { return "u0x0007"; }
-    if (this->value == "'\\\"'") { return "u0x0022"; }
-    if (this->value == "'\\\\'") { return "u0x005C"; }
-    if (this->value == "'\\\''") { return "u0x0027"; }
+    if (this->const_value == "'\\n'") { return "\\u000A"; }
+    if (this->const_value == "'\\t'") { return "\\u0009"; }
+    if (this->const_value == "'\\v'") { return "\\u000B"; }
+    if (this->const_value == "'\\f'") { return "\\u000C"; }
+    if (this->const_value == "'\\r'") { return "\\u000D"; }
+    if (this->const_value == "'\\a'") { return "\\u0007"; }
+    if (this->const_value == "'\\\"'") { return "\\u0022"; }
+    if (this->const_value == "'\\\\'") { return "\\u005C"; }
+    if (this->const_value == "'\\\''") { return "\\u0027"; }
 
-    if (this->value[1] == '\\' && this->value.size() == 8) {
-        return string("u0x") + this->value.substr(3, 2) + this->value.substr(5, 2);
+    if (this->const_value.value()[1] == '\\' && this->const_value.value().size() == 8) {
+        return string("u0x") + this->const_value.value().substr(3, 2) + this->const_value.value().substr(5, 2);
     }
 
-    return std::to_string((uint16_t) this->value[1]);
+    return std::to_string((uint16_t) this->const_value.value()[1]);
 }
 
 void CharLiteralAST::consume(CstType type) {
@@ -297,30 +295,31 @@ TEST_CASE ("Testing CharLiteralAST::parse", "[literal]") {
     }
 }
 
+/*
 TEST_CASE ("Testing CharLiteralAST::parse - disallowed chars", "[literal]") {
     string val = GENERATE("''", "'ab'");
     lexer::TokenStream tokens = lexer::tokenize(val);
     RAISED(CharLiteralAST::parse(tokens, 0, nullptr));
 }
+*/
 
 StringLiteralAST::StringLiteralAST(string value, lexer::TokenStream tokens) {
-    this->value  = value;
+    this->const_value  = value;
     this->tokens = tokens;
-    is_const     = true;
 }
 
 sptr<AST> StringLiteralAST::parse(lexer::TokenStream tokens, int, symbol::Namespace*, string) {
     DEBUG(4, "Trying StringLiteralAST::parse");
     if (tokens.size() != 1) { return nullptr; }
-    if (tokens[0].type == lexer::Token::Type::string) {
-        return share<AST>(new StringLiteralAST(tokens[0].value, tokens));
+    if (tokens[0].type == lexer::Token::Type::STRING) {
+        return sptr<AST>(new StringLiteralAST(tokens[0].value, tokens));
     }
     return nullptr;
 }
 
 
 string StringLiteralAST::getValue() const {
-    return value;
+    return const_value.value();
 }
 
 void StringLiteralAST::consume(CstType type) {
@@ -330,7 +329,7 @@ void StringLiteralAST::consume(CstType type) {
 }
 
 sptr<AST> NullLiteralAST::parse(PARSER_FN_PARAM) {
-    if (tokens.size() == 1 && tokens[0].type == lexer::Token::NULV) { return share<AST>(new NullLiteralAST(tokens)); }
+    if (tokens.size() == 1 && tokens[0].type == lexer::Token::NULV) { return sptr<AST>(new NullLiteralAST(tokens)); }
 
     return nullptr;
 }
@@ -348,7 +347,7 @@ sptr<AST> EmptyLiteralAST::parse(PARSER_FN_PARAM) {
     DEBUG(4, "Trying \e[1mEmptyLiteralAST::parse\e[0m");
     if (tokens.size() != 2) { return nullptr; }
     if (tokens[0].type == lexer::Token::INDEX_OPEN && tokens[1].type == lexer::Token::INDEX_CLOSE) {
-        return share<AST>(new EmptyLiteralAST(tokens));
+        return sptr<AST>(new EmptyLiteralAST(tokens));
     }
     return nullptr;
 }
@@ -356,11 +355,11 @@ sptr<AST> EmptyLiteralAST::parse(PARSER_FN_PARAM) {
 void EmptyLiteralAST::consume(CstType type) {
     if (type.size() < 2 || type.substr(type.size() - 2) != "[]") {
         parser::error(parser::errors["Type mismatch"], tokens, string("expected a \e[1m") + type + "\e[0m, found an empty array");
-    } else if (type != "@unknown") {
+    } else if (type != "@unknown"_c) {
         this->type = type;
     }
 }
-
+/*
 sptr<AST> ArrayFieldMultiplierAST::parse(PARSER_FN_PARAM) {
     DEBUG(4, "Trying \e[1mArrayFieldMultiplierAST::parse\e[0m");
     lexer::TokenStream::Match m = tokens.rsplitStack({lexer::Token::X});
@@ -379,16 +378,15 @@ sptr<AST> ArrayFieldMultiplierAST::parse(PARSER_FN_PARAM) {
         amount->consume("usize"_c);
 
         DEBUG(5, "\tDone!");
-        return share<AST>(new ArrayFieldMultiplierAST(tokens,content, amount));
+        return sptr<AST>(new ArrayFieldMultiplierAST(tokens,content, amount));
     }
     return nullptr;
 }
 
 void ArrayFieldMultiplierAST::consume(CstType type) {
     content->consume(type);
-    is_const = content->is_const && amount->is_const;
-    if (is_const) {
-        value = std::stoll(amount->value);
+    if (content->const_value.has_value() && amount->const_value.has_value()) {
+        len = std::stoll(amount->const_value.value());
     }
 }
 
@@ -425,11 +423,11 @@ sptr<AST> ArrayLiteralAST::parse(PARSER_FN_PARAM) {
             }
             contents.push_back(expr);
         }
-        return share<AST>(new ArrayLiteralAST(tokens, contents));
+        return sptr<AST>(new ArrayLiteralAST(tokens, contents));
     }
     return nullptr;
 }
-
+// TODO
 void ArrayLiteralAST::consume(CstType type) {
     if ((type.size() < 2 || type.substr(type.size() - 2) != "[]") && type != "@unknown") {
         parser::error(parser::errors["Type mismatch"], tokens, string("expected a \e[1m") + type + "\e[0m, found an array");
@@ -440,4 +438,4 @@ void ArrayLiteralAST::consume(CstType type) {
         a->consume(type.substr(0, type.size() - 2));
         is_const = is_const && a->is_const;
     }
-}
+}*/

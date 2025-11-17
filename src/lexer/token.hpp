@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <sys/types.h>
 #include <vector>
 
 using namespace std;
@@ -322,6 +323,21 @@ namespace lexer {
             /// \param sep list of tokens to be seperated at
             /// \param allow_empty whether to allow empty blocks
             vector<lexer::TokenStream> list(initializer_list<lexer::Token::Type> sep, bool allow_empty = false) const;
+
+            ///
+            /// \brief remove the tokens between these indices
+            ///
+            /// Note that this modifies ALL tokenstreams on this vector and should not be done while subvectors exist
+            ///
+            void cut(usize start, usize stop);
+
+            ///
+            /// \brief add the tokens of this stream to this stream
+            ///
+            /// \param index where to put it after
+            /// \param filename filename of the included file
+            ///
+            void include(TokenStream t, usize idx, string filename);
 
             // Match operator[](lexer::Token::Type type) { return split({type}); }
     };

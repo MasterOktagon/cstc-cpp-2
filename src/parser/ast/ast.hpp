@@ -16,9 +16,9 @@
     lexer::TokenStream, int local, symbol::Namespace *sr,                           \
         string expected_type = "@unknown" ///< used to template all parser functions
 #define PARSER_FN_PARAM      lexer::TokenStream tokens, int local, symbol::Namespace *sr, string expected_type
-#define PARSER_FN_NO_DEFAULT fsignal<sptr<AST>, lexer::TokenStream, int, symbol::Namespace*, string>
+#define PARSER_FN_NO_DEFAULT callable<sptr<AST>, lexer::TokenStream, int, symbol::Namespace*, string>
 #define ERR                  sptr<AST>(new AST)
-#define PUT_PT(s, a)         (a ? "("s + s + ")" : s)
+#define PUT_PT(s, a)         (a ? "("_s + s + ")" : s)
 
 ///
 /// \class represents an AST node

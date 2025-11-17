@@ -171,6 +171,8 @@ lexer::Token::Type lexer::matchType(string c) {
         type = lexer::Token::Type::NULV;
     } else if (c == "x") {
         type = lexer::Token::Type::X;
+    } else if (c == "include") {
+        type = lexer::Token::Type::INCLUDE;
     }
 
     return type;
@@ -182,12 +184,12 @@ lexer::Token::Type lexer::matchType(string c) {
 
 /// \brief handle and clear the buffer (add a token if the buffer is not empty)
 ///
-#define handleBuffer()                                                                                           \
-    if (buffer.size() > 0) {                                                                                     \
-        tokens->push_back(                                                                                       \
-            Token(matchType(buffer), buffer, line, col - buffer.size(), make_shared<string>(filename), lc));     \
-        if (pretty_size != -1 && col > (uint64) pretty_size) too_long.push_back(tokens->at(tokens->size() - 1)); \
-        buffer = "";                                                                                             \
+#define handleBuffer()                                                                                            \
+    if (buffer.size() > 0) {                                                                                      \
+        tokens->push_back(                                                                                        \
+            Token(matchType(buffer), buffer, line, col - buffer.size(), make_shared<string>(filename), lc));      \
+        if (pretty_size != -1 and col > (uint64) pretty_size) too_long.push_back(tokens->at(tokens->size() - 1)); \
+        buffer = "";                                                                                              \
     }
 
 /// \brief Update Variables and raise Warning if line is too long
@@ -227,6 +229,8 @@ lexer::TokenStream lexer::tokenize(string text, string filename) {
     uint64 col          = 0;                                                ///< current column
     uint64 line         = 1;                                                ///< current line
     bool   line_comment = false;                                            ///< if currently in a line comment
+    bool   in_string    = false;                                            ///< if in a string
+    bool   in_char      = false;                                            ///< if in a char
     uint64 ml_comment   = 0; ///< multiline comment level. If 0 => no comment
 #define NO_COMMENT 0
     sptr<string> lc = sptr<string>(
@@ -247,12 +251,12 @@ lexer::TokenStream lexer::tokenize(string text, string filename) {
         if (line_comment) { goto update; } // ignore rest of line
 
         // comments
-        if (c == '/' && i < text.size() - 1 && text[i + 1] == '/') { // Single line comment
+        if (c == '/' and i < text.size() - 1 and text[i + 1] == '/') { // Single line comment
             handleBuffer();
             if (ml_comment == NO_COMMENT) { line_comment = true; }
             goto update;
         }
-        if (c == '/' && i < text.size() - 1 && text[i + 1] == '*') { // Multiline comment start
+        if (c == '/' and i < text.size() - 1 and text[i + 1] == '*') { // Multiline comment start
             handleBuffer();
             ml_comment++;
             if (ml_comment == 1) {
@@ -261,7 +265,7 @@ lexer::TokenStream lexer::tokenize(string text, string filename) {
             }
             goto update;
         }
-        if (c == '*' && i < text.size() - 1 && text[i + 1] == '/') {
+        if (c == '*' and i < text.size() - 1 and text[i + 1] == '/') {
             *lc += '/';
             if (ml_comment == NO_COMMENT) {
                 parser::error(parser::errors["Unopened multiline comment"],
@@ -274,14 +278,35 @@ lexer::TokenStream lexer::tokenize(string text, string filename) {
             goto update;
         }
         if (ml_comment > NO_COMMENT) { goto update; } // => in multiline_comment
+        if (c == '"') {
+            if (i == 0 or text[i] != '\\') {
+                in_string = not in_string;
+                buffer += c;
+                if (not in_string) { handleBuffer(); }
+                goto update;
+            }
+        }
+        if (c == '\'') {
+            if (i == 0 or text[i] != '\\') {
+                in_char = not in_char;
+                buffer += c;
+                if (not in_char) { handleBuffer(); }
+                goto update;
+            }
+        }
+        if (in_string or in_char) { // => in char or string literal
+            buffer += c;
+            goto update;
+        }
 
         // Special Error: unresolved Git merge conflict
-        if (c == '<' && text.size() >= i + 12 && text.substr(i, 13) == "<<<<<<<< HEAD") {
+        if (c == '<' and text.size() >= i + 12 and text.substr(i, 13) == "<<<<<<<< HEAD") {
             *lc += "<<<<<<< HEAD"; // Add to line buffer
             parser::error(
                 parser::errors["Unresolved merge conflict"],
                 {Token(lexer::Token::Type::NONE, "<<<<<<<< HEAD", line, col, make_shared<string>(filename), lc)},
-                "There is an unresolved git merge conflict in this file.\nTry\n \e[36m$\e[0m git mergetool\nfor help");
+                "There is an unresolved git merge conflict in this file.\nTry\n \e[36m$\e[0m git mergetool\nfor "
+                "help");
             while (!std::regex_match(*lc, std::regex(">>>>>>> .*"))) { // move fwd until merge conflict end
                 i++;
                 col++;
@@ -289,7 +314,7 @@ lexer::TokenStream lexer::tokenize(string text, string filename) {
                 if (i >= text.size()) { return TokenStream({}); }
                 updateVars();
             }
-            while (i + 1 < text.size() && text[i + 1] != '\n') {
+            while (i + 1 < text.size() and text[i + 1] != '\n') {
                 i++;
                 col++;
                 c = text[i];
@@ -299,7 +324,7 @@ lexer::TokenStream lexer::tokenize(string text, string filename) {
 
         // Special Token: ...
         if (i < text.size() - 2) {
-            if (c == '.' && text[i + 1] == '.' && text[i + 2] == '.') {
+            if (c == '.' and text[i + 1] == '.' and text[i + 2] == '.') {
                 handleBuffer();
                 tokens->push_back(Token(Token::Type::DOTDOTDOT, "...", line, col, make_shared<string>(filename), lc));
                 col += 2;

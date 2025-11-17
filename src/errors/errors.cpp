@@ -2,6 +2,7 @@
 #include "../lexer/token.hpp"
 #include "../snippets.hpp"
 #include "../helpers/string_functions.hpp"
+#include "../module.hpp"
 #include <cstdlib>
 #include <iostream>
 #include <vector>
@@ -49,6 +50,7 @@ map<string, parser::ErrorType> parser::errors = {
     REGISTER_ERROR("return forbidden"),
     REGISTER_ERROR("Unreachable code"),
     REGISTER_ERROR("Expected ';'"),
+    REGISTER_ERROR("Modifier not allowed"),
     REGISTER_ERROR("Array type not specified"),
     REGISTER_ERROR("Expected list of names"),
     REGISTER_ERROR("Import-all must be at line End"),
@@ -70,6 +72,8 @@ map<string, parser::ErrorType> parser::errors = {
     REGISTER_ERROR("Namespace not allowed"),
     REGISTER_ERROR("Unopened multiline comment"),
     REGISTER_ERROR("Unresolved merge conflict"),
+    REGISTER_ERROR("Module not found"),
+    REGISTER_ERROR("File not found"),
 };
 
 #undef LOCAL_COUNTER
@@ -86,6 +90,8 @@ std::map<string, parser::ErrorType> parser::warnings = {
     REGISTER_WARNING("Variable declared as constant and static"),
     REGISTER_WARNING("Line too long"),
     REGISTER_WARNING("Unclosed multiline comment"),
+    REGISTER_WARNING("No implementation file found"),
+    REGISTER_WARNING("Import not at top"),
 };
 
 #undef LOCAL_COUNTER
@@ -100,7 +106,7 @@ void parser::unmute() {
 void showError(string errstr, string errcol, string errcol_lite, string name, string msg, vector<lexer::Token> tokens, uint32 code, string appendix){
     if (muted) return;
     if (tokens.size() == 0) {
-        std::cerr << "OH NO! " << errstr << " " << name << " could not be displayed:\n" << intab(msg) << "\n";
+        std::cerr << "OH NO! " << errstr << " " << name << " could not be displayed:\n" << msg << "\n";
         return;
     }
     string location;
@@ -112,7 +118,7 @@ void showError(string errstr, string errcol, string errcol_lite, string name, st
         location += " - " + to_string(tokens.at(tokens.size()-1).line) + ":" + to_string(tokens.at(tokens.size()-1).column + tokens.at(tokens.size()-1).value.size()-1);
     }
 
-    std::cerr << "\r" << errcol << errstr << ": " << name << "\e[0m @ \e[0m" << tokens[0].filename << "\e[1m" << location << "\e[0m" << (code == 0? ""s : " ["s + errstr[0] + to_string(code) + "]") << ":" << std::endl;
+    std::cerr << "\r" << errcol << errstr << ": " << name << "\e[0m @ " << Module::directory.string() << "/\e[1m" << tokens[0].filename->substr(Module::directory.string().size()+1) << location << "\e[0m" << (code == 0? ""s : " ["s + errstr[0] + to_string(code) + "]") << ":" << std::endl;
     std::cerr << msg << std::endl;
     std::cerr << "       | " << std::endl;
     if (tokens.size() == 1){

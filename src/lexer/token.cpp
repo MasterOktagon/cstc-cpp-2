@@ -4,6 +4,8 @@
 #include "../snippets.hpp"
 
 #include <algorithm>
+#include <iostream>
+#include <iterator>
 #include <memory>
 #include <stack>
 #include <string>
@@ -303,4 +305,42 @@ TEST_CASE ("Testing lexer::TokenStream::list", "[tokens]") {
     REQUIRE(result[1].size() == 1);
     REQUIRE(result[2].size() == 3);
     REQUIRE(result[3].size() == 1);
+}
+
+void lexer::TokenStream::cut(usize from, usize to){
+    tokens->erase(tokens->begin()+start+from, tokens->begin()+start+to);
+    stop -= to-from;
+}
+
+TEST_CASE("Testing lexer::TokenStream::cut", "[tokens]"){
+    vector<lexer::Token> tokens = {lexer::Token::COMMA,lexer::Token::INT,
+                                    lexer::Token::COMMA,lexer::Token::INT,
+                                    lexer::Token::COMMA,lexer::Token::OPEN,lexer::Token::COMMA, lexer::Token::CLOSE,
+                                    lexer::Token::COMMA,lexer::Token::INT};
+    lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
+
+    t.cut(0,4);
+    REQUIRE(t.size() == 6);
+    REQUIRE(t[1].type == lexer::Token::OPEN);
+}
+
+void lexer::TokenStream::include(lexer::TokenStream t, usize idx, string filename){
+    for (lexer::Token tok : *(t.tokens)){
+        tok.include = make_shared<string>(filename);
+        tokens->insert(tokens->begin() + (idx++), tok);
+    }
+    stop += t.size();
+}
+
+TEST_CASE("Testing lexer::TokenStream::include", "[tokens]"){
+    vector<lexer::Token> tokens = {lexer::Token::COMMA,lexer::Token::INT,
+                                    lexer::Token::COMMA,lexer::Token::INT};
+    lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
+    vector<lexer::Token> tokens2 = {lexer::Token::OPEN,lexer::Token::CLOSE};
+    lexer::TokenStream   t2      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens2));
+    
+    t.include(t2, 3, "teasdsad");
+    REQUIRE(t.size() == 6);
+    REQUIRE(t[3].type == lexer::Token::OPEN);
+    REQUIRE(t[4].type == lexer::Token::CLOSE);
 }

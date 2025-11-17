@@ -116,3 +116,4 @@ inline std::string str(Repr* r) {
 #define instanceOf(el, of) ((of*) el.get() == dynamic_cast<of*>(el.get()))
 #define cast2(a, to)       (std::dynamic_pointer_cast<to>(a))
 
+#define FORGET(m) void(sizeof(m))

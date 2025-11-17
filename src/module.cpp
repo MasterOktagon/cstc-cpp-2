@@ -1,0 +1,419 @@
+
+//
+// MODULE.cpp
+//
+// implements the module class
+//
+
+#include "module.hpp"
+
+#include "debug.hpp"
+#include "errors/errors.hpp"
+#include "lexer/lexer.hpp"
+#include "lexer/token.hpp"
+// #include "parser/ast/ast.hpp"
+#include "helpers/string_functions.hpp"
+// #include "parser/ast/flow.hpp"
+#include "parser/symboltable.hpp"
+#include "snippets.hpp"
+
+#include <algorithm>
+#include <asm-generic/errno.h>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <list>
+#include <map>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <string>
+#include <sys/types.h>
+#include <utility>
+#include <vector>
+
+map<string, Module*> Module::known_modules =
+    {}; ///< A map of all compile-time known modules to allow faster acces when importing
+list<string> Module::unknown_modules = {}; ///< A map of all compile-time unknown modules to allow better error messages
+list<Module*> Module::modules = {}; ///< A list of all modules loaded. This is used to determine the compile order
+fs::path      Module::directory;    ///< Project directory
+
+uint64 parsed_modules = 0; ///< amount of parsed modules
+
+/**
+ * @brief get the default stdlib location using the CSTC_STD environment variable
+ */
+string Module::stdLibLocation() {
+    if (const char* p = getenv("CSTC_STD")) { return p; }
+    return "";
+}
+
+/**
+ * @brief replace the ~ for the home path using the HOME environment variable
+ */
+inline string h(string s) {
+    if (s[0] == '~') { return string(getenv("HOME")) + s.substr(1); }
+    return s;
+}
+
+bool Module::isHeader() const {
+    return fs::exists(hst_file);
+}
+
+bool Module::isKnown() const {
+    return fs::exists(cst_file);
+}
+
+/**
+ * @brief return an imported module. This method checks if there already is a module of this name
+ * and reuses it if possible
+ *
+ * @param path path to check for can be a "real path" or an C* import module path: @see @param from_path
+ * @param dir  directory in which the callee is. currently unused
+ * @param overpath path of the callee
+ * @param is_stdlib depicts if this file is a stdlib file (for looking in CSTC_STD path)
+ * @param tokens tokens of the preprocessor-parser, used for error messages
+ * @param is_main_file whether this is the main file. should not be set outside the main function.
+ * @param from_path create this from a "real path" instead of a module
+ *
+ * @return Newly created Module (Pointer) if succesful or nullptr
+ */
+Module* Module::create(string path,
+                       string,
+                       string               overpath,
+                       bool                 is_stdlib,
+                       vector<lexer::Token> tokens,
+                       bool                 is_main_file,
+                       bool                 from_path) {
+    string module_name = "<unknown>";
+    if (!from_path) { path = mod2Path(path); }
+    usize pos = path.rfind(".");
+    if (pos != string::npos) { path = path.substr(0, pos); }
+    pos = overpath.rfind(".");
+    if (pos != string::npos) { overpath = overpath.substr(0, pos); }
+
+    fs::path directory = fs::current_path();
+    if (is_stdlib) {
+        directory   = fs::u8path(h(stdLibLocation()));
+        module_name = path2Mod(path);
+        module_name = ""s + module_name;
+    } else {
+        if (!from_path) {
+            directory = fs::u8path(overpath).parent_path();
+            module_name =
+                path2Mod(fs::relative(fs::u8path(overpath).parent_path(), fs::current_path()).string() + "/" + path);
+        } else {
+            module_name = path2Mod(path);
+        }
+    }
+
+    ////cout << directory << endl;
+    ////cout << path << endl;
+    ////cout << module_name << endl;
+
+    if (known_modules.count(module_name) > 0) { return known_modules[module_name]; }
+    if (fs::exists(directory.string() + "/" + path + ".hst")) {
+        if (!fs::exists(directory.string() + "/" + path + ".cst")) {
+            parser::warn(parser::warnings["No implementation file found"],
+                         tokens,
+                         "Missing an implementation file (\".cst\") @ "_s + directory.string() + "/" + path);
+        }
+        known_modules[module_name] = new Module(path, directory.string(), module_name, is_stdlib, is_main_file);
+        modules.push_back(known_modules[module_name]);
+        return known_modules[module_name];
+    }
+    if (fs::exists(directory.string() + "/" + path + ".cst")) {
+        known_modules[module_name] = new Module(path, directory.string(), module_name, is_stdlib, is_main_file);
+        modules.push_back(known_modules[module_name]);
+        return known_modules[module_name];
+    }
+    if (find(unknown_modules.begin(), unknown_modules.end(), module_name) == unknown_modules.end()) {
+        parser::error(parser::errors["Module not found"],
+                      vector<lexer::Token>(tokens.begin() + 1, tokens.end() - 1),
+                      "A module at "_s + directory.string() + "/" + path + " was not found");
+        unknown_modules.push_back(module_name);
+    }
+
+    return nullptr;
+}
+
+Module::Module(string path, string dir, string module_name, bool is_stdlib, bool is_main_file) {
+    loc = "";
+    for (uint64 i = 0; i < module_name.size(); i++) {
+        if (i < module_name.size() - 2 && module_name[i] == ':' && module_name[i + 1] == ':') {
+            loc += "::";
+            i++;
+        } else {
+            loc += module_name[i];
+        }
+    }
+
+    this->is_main_file = is_main_file;
+    this->is_stdlib    = is_stdlib;
+    this->module_name  = module_name;
+    ////cout << "name: " <<  this->module_name << endl;
+
+    directory = fs::u8path(dir);
+    cst_file  = fs::u8path(dir + "/" + path + ".cst");
+    hst_file  = fs::u8path(dir + "/" + path + ".hst");
+
+    cout << "\rFetching modules: (" << known_modules.size() + 1 << "/?)";
+    if (module_name != "lang" && known_modules.count("lang") > 0) { include.push_back(known_modules["lang"]); }
+
+    preprocess();
+}
+
+/**
+ * @brief convert a path to a module name
+ */
+string Module::path2Mod(string path) {
+    string out;
+    usize  pos = path.find("/");
+    while (pos != string::npos) {
+        out  += path.substr(0, pos) + "::";
+        path  = path.substr(pos + 1);
+        pos   = path.find("/");
+    }
+    out += path;
+    return out;
+}
+
+/**
+ * @brief convert a module name to a path
+ */
+string Module::mod2Path(string mod) {
+    string out;
+
+    for (uint64 i = 0; i < mod.size(); i++) {
+        if (i < mod.size() - 2 && mod[i] == ':' && mod[i + 1] == ':') {
+            out += '/';
+            i++;
+        } else {
+            out += mod[i];
+        }
+    }
+    return out;
+}
+
+/**
+ * @brief get a visual representation of this Object
+ */
+string Module::_str() const {
+    return fillup("\e[1m"s + module_name + "\e[0m", 50) + (isHeader() ? "\e[36;1m[h]\e[0m"s : "   "s) +
+           (is_main_file ? "\e[32;1m[m]\e[0m"s : "   "s) + (is_stdlib ? "\e[33;1m[s]\e[0m"s : "   "s) +
+           (module_name == "lang" ? "\e[1m[l]\e[0m"s : "   "s) + " @ " + (cst_file.string());
+}
+
+/**
+ * @brief compare two modules about their load order
+ *
+ * @return true, if a should be loaded before b
+ */
+bool Module::loadOrder(Module* a, Module* b) {
+    for (pair<string, Module*> p : a->deps) {
+        if (p.second == b) { return false; }
+    }
+    for (symbol::Namespace* m : a->include) {
+        if (m == b) { return false; }
+    }
+    return true;
+}
+
+/**
+ * @brief get a symbol list for an import. Meta-function. Prefer not to use.
+ */
+optional<vector<string>> getImportList(lexer::TokenStream t) {
+    if (t.size() == 0) { return {}; }
+    vector<string> out = {};
+
+    lexer::Token::Type last = lexer::Token::Type::COMMA;
+
+    for (lexer::Token tok : *t.tokens) {
+        if (tok.type == lexer::Token::Type::COMMA) {};
+        if (tok.type == lexer::Token::Type::SYMBOL) {
+            if (last == lexer::Token::Type::COMMA) {
+                out.push_back(tok.value);
+            } else {
+                return {};
+            }
+        } else {
+            return {};
+        }
+        last = tok.type;
+    }
+    return out;
+}
+
+/**
+ * @brief tokenize this module and parse for imports to include them
+ */
+void Module::preprocess() {
+    ifstream f(cst_file.string());
+    string   content = string(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
+
+    tokens = lexer::tokenize(content, cst_file);
+
+    bool                 at_top = true;
+    lexer::Token         first;
+    uint32               macros_edited = 1;
+    vector<lexer::Token> buffer        = {};
+    while (macros_edited > 0) {
+        // string s = "";
+        // for (lexer::Token t : *tokens.tokens) { s += t.value + " "; }
+        // DEBUG(0, s);
+        macros_edited = 0;
+        for (lexer::Token t : *tokens.tokens) {
+            if (t.type == lexer::Token::Type::END_CMD) {
+                if (buffer.size() > 0 and buffer.at(0).type == lexer::Token::Type::IMPORT) {
+                    lexer::Token::Type last = lexer::Token::Type::SUBNS;
+                    string             new_module_name;
+                    string             as;
+                    uint64             i2         = 0;
+                    bool               importall  = false;
+                    bool               has_import = false;
+                    vector<string>     from       = {};
+                    for (lexer::Token& a : buffer) {
+                        // cout << i2 << " " << new_module_name << endl;
+                        if (a.type == lexer::Token::IMPORT && !has_import) {
+                            i2++;
+                            has_import = true;
+                            continue;
+                        } else if (last == lexer::Token::SUBNS &&
+                                   (a.type == lexer::Token::DOTDOT || a.type == lexer::Token::SYMBOL)) {
+                            new_module_name += a.value;
+                        } else if (a.type == lexer::Token::SUBNS &&
+                                   (last == lexer::Token::DOTDOT || last == lexer::Token::SYMBOL)) {
+                            new_module_name += a.value;
+                        } else if ((last == lexer::Token::DOTDOT || last == lexer::Token::SYMBOL) &&
+                                   a.type == lexer::Token::Type::END_CMD) {
+                            break;
+                        } else if ((last == lexer::Token::DOTDOT || last == lexer::Token::SYMBOL) &&
+                                   a.type == lexer::Token::Type::AS) {
+                            if (buffer.size() > i2 + 2 && buffer.at(i2 + 1).type == lexer::Token::Type::SYMBOL &&
+                                buffer.at(i2 + 2).type == lexer::Token::Type::END_CMD) {
+                                string as = buffer.at(i2 + 1).value;
+                                break;
+                            } else {
+                                goto disallowed;
+                            }
+                        } else if ((last == lexer::Token::DOTDOT || last == lexer::Token::SYMBOL) &&
+                                   a.type == lexer::Token::Type::IN) {
+                            if (buffer.size() > i2 + 3 && buffer.at(i2 + 1).type == lexer::Token::Type::BLOCK_OPEN &&
+                                buffer.at(buffer.size() - 1).type == lexer::Token::Type::END_CMD &&
+                                buffer.at(buffer.size() - 2).type == lexer::Token::Type::BLOCK_CLOSE) {
+                                try {
+                                    from = getImportList(lexer::TokenStream(make_shared<vector<lexer::Token>>(
+                                                             vector(buffer.begin() + (i2 + 2), buffer.end() - 2))))
+                                               .value();
+                                    break;
+                                } catch (const bad_optional_access&) { // urgh!
+                                    goto disallowed;
+                                }
+                            } else {
+                                goto disallowed;
+                            }
+                        } else if (last == lexer::Token::SUBNS && a.type == lexer::Token::Type::MUL) {
+                            if (buffer.size() > i2 + 1 && buffer.at(i2 + 1).type == lexer::Token::Type::END_CMD &&
+                                new_module_name != "") {
+                                importall       = true;
+                                new_module_name = new_module_name.substr(0, new_module_name.size() - 2);
+                                break;
+                            } else {
+                                goto disallowed;
+                            }
+                        } else {
+                            goto disallowed; // Yay, goto
+                        }
+                        last = a.type;
+                        i2++;
+                        // cout << module_name << endl;
+                    }
+                    // cout << "New module name: " << new_module_name << endl;
+                    bool is_stdlib = false;
+                    if (new_module_name.starts_with("std::")) {
+                        new_module_name = new_module_name.substr(5);
+                        is_stdlib       = true;
+                    }
+
+                    Module* m = Module::create(new_module_name, directory.string(), cst_file, is_stdlib, buffer);
+                    if (deps.count(m->module_name)) { break; }
+                    if (m != nullptr) {
+                        deps[m->module_name] = m;
+                        for (string s : from) { import_from[s] = m->module_name + "::" + s; }
+                        if (importall) {
+                            include.push_back(m);
+                        } else if (as != "") {
+                            add(as, m);
+                        } else {
+                            contents[module_name] = {m};
+                        }
+                    }
+
+                    if (!at_top && m != nullptr) {
+                        parser::warn(parser::warnings["Import not at top"],
+                                     buffer,
+                                     "This import statement was not at the top of the module");
+                        parser::note({first}, "because of this token '"_s + first.value + "'");
+                    }
+                } else {
+                    at_top = false;
+                    if (buffer.size() > 0) { first = buffer.at(0); }
+                }
+disallowed:
+                buffer = {};
+            } else {
+                buffer.push_back(t);
+            }
+        }
+        for (usize i = 0; i < tokens.size(); i++) {
+            // DEBUG(5, to_string(i) + ": " + tokens[i].value);
+            if (tokens[i].type == lexer::Token::INCLUDE) {
+                if (i < tokens.size() - 1) {
+                    lexer::Token t = tokens[i + 1];
+                    // DEBUG(5, t.value);
+                    if (t.type == lexer::Token::STRING) {
+                        std::fs::path include_file_name =
+                            std::fs::u8path(directory.string() + "/" + mod2Path(module_name)).parent_path();
+                        include_file_name += "/"_s + t.value.substr(1, t.value.size() - 2);
+                        // DEBUG(3, "including: "_s + include_file_name);
+                        if (std::fs::exists(include_file_name)) {
+                            ifstream file(include_file_name);
+                            string   c = string(istreambuf_iterator<char>(file), istreambuf_iterator<char>());
+
+                            tokens.cut(i, i + 2);
+                            lexer::TokenStream new_tokens = lexer::tokenize(c, cst_file.string());
+                            tokens.include(new_tokens, i, include_file_name.string());
+                            // DEBUG(4, "tokens size: "_s + to_string(tokens.size()));
+                        } else {
+                            parser::error(parser::errors["File not found"],
+                                          tokens.slice(i, i + 2),
+                                          "No file named "_s + include_file_name.string() + " was found!");
+                            tokens.cut(i, i + 2);
+                        }
+                        macros_edited += 1;
+                    }
+                }
+            }
+        }
+    }
+    // cout << "end " << module_name << endl;
+    f.close();
+}
+
+/**
+ * @brief parse this module and create AST nodes
+ */
+void Module::parse() {
+    /*sptr<AST> root = SubBlockAST::parse(tokens, 0, this);
+    if (root != nullptr) {
+        int* i = new int;
+        *i     = 0;
+        // cout << str(root.get()) << endl;
+        cout << root->emitCST() << endl;
+
+        delete i;
+    }*/
+    cout << "\rParsing modules (" << ++parsed_modules << "/" << Module::modules.size() << ")";
+}
+

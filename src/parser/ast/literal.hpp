@@ -11,15 +11,27 @@
 //#include "flow.hpp"
 #include "../../snippets.hpp"
 
+#include <optional>
 #include <vector>
 
 extern AST* parse_neg(std::vector<lexer::Token>, int local, symbol::Namespace* sr, string expected_type = "@unknown");
 
+///
+/// \class abstract class that represents a literal
+///
 class LiteralAST : public AST {
     public:
-        virtual ~LiteralAST() {};
+        /// \brief deconstructor
+        ///
+        virtual ~LiteralAST() = default;
+
+        /// \brief get the (const) value of this literal as a string
+        ///
         virtual string getValue() const abstract;
 
+        /// 
+        /// \brief get this Nodes work size (in Nodes) for progress reports
+        ///
         virtual uint64 nodeSize() const final { return 1; }
         virtual CstType provide() final;
 };
@@ -58,7 +70,7 @@ class IntLiteralAST : public LiteralAST {
 
 class BoolLiteralAST : public LiteralAST {
     protected:
-        string _str() const { return "<Bool: "s + const_value + ">"; }
+        string _str() const { return "<Bool: "_s + const_value.value() + ">"; }
 
     public:
         BoolLiteralAST(string const_value, lexer::TokenStream tokens);
@@ -67,7 +79,7 @@ class BoolLiteralAST : public LiteralAST {
 
         // fwd declarations @see @class AST
 
-        string getValue() const { return const_value; }
+        string getValue() const { return const_value.value(); }
 
         virtual string emitCST() const;
         CstType getCstType() const { return "bool"_c; }
@@ -86,7 +98,7 @@ class FloatLiteralAST : public LiteralAST {
         int bits = 32; //> Float size (name)
 
     protected:
-        string _str() const { return "<Float: "s + const_value + " | " + std::to_string(bits) + ">"; }
+        string _str() const { return "<Float: "_s + const_value.value() + " | " + std::to_string(bits) + ">"; }
 
     public:
         FloatLiteralAST(int bits, string const_value, lexer::TokenStream tokens);
@@ -95,7 +107,7 @@ class FloatLiteralAST : public LiteralAST {
 
         CstType getCstType() const { return CstType("float"s + std::to_string(bits)); }
 
-        string getValue() const { return const_value; }
+        string getValue() const { return const_value.value(); }
 
         virtual string emitCST() const;
         virtual void consume(CstType type);
@@ -110,7 +122,7 @@ class FloatLiteralAST : public LiteralAST {
 
 class CharLiteralAST : public LiteralAST {
     protected:
-        string _str() const { return "<Char: '"s + const_value + "'>"; }
+        string _str() const { return "<Char: '"_s + const_value.value() + "'>"; }
 
     public:
         CharLiteralAST(string const_value, lexer::TokenStream tokens);
@@ -121,7 +133,7 @@ class CharLiteralAST : public LiteralAST {
 
         string         getValue() const;
 
-        virtual string emitCST() const { return const_value; };
+        virtual string emitCST() const { return const_value.value(); };
         virtual void consume(CstType type);
 
         /**
@@ -134,7 +146,7 @@ class CharLiteralAST : public LiteralAST {
 
 class StringLiteralAST : public LiteralAST {
     protected:
-        string _str() const { return "<string: \""s + const_value + "\">"; }
+        string _str() const { return "<string: \""_s + const_value.value() + "\">"; }
 
     public:
         StringLiteralAST(string const_value, lexer::TokenStream tokens);
@@ -145,7 +157,7 @@ class StringLiteralAST : public LiteralAST {
 
         string getValue() const;
 
-        virtual string emitCST() const { return const_value; };
+        virtual string emitCST() const { return const_value.value(); };
         virtual void consume(CstType type);
 
         /**
@@ -190,7 +202,7 @@ class EmptyLiteralAST : public LiteralAST {
         uint64 const_len = 0;
 
     public:
-        EmptyLiteralAST(lexer::TokenStream tokens){this->tokens = tokens; is_const = true;}
+        EmptyLiteralAST(lexer::TokenStream tokens){this->tokens = tokens; const_value = "[]";}
 
         virtual ~EmptyLiteralAST() {}
 
@@ -216,6 +228,7 @@ class ArrayFieldMultiplierAST : public AST {
         CstType type = "@unknown"_c;
         sptr<AST> content;
         sptr<AST> amount;
+        optional<uint32> len;
 
         public:
         ArrayFieldMultiplierAST(lexer::TokenStream tokens, sptr<AST> content, sptr<AST> amount) {

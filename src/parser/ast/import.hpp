@@ -1,24 +1,15 @@
 #pragma once
-
-//
-// IMPORT.hpp
-//
-// import ingoring & debugging AST
-//
-
+#include "../../snippets.hpp"
 #include "../symboltable.hpp"
 #include "ast.hpp"
 
-/**
- * @namespace that implements the Import helper parsing (W.I.P.)
- */
-namespace ImportAST {
-   /**
-     * @brief parses (and ignores) Import statements to allow debugging import statements
-     */
-    extern sptr<AST> parse(PARSER_FN);
-}
-
-
-
+class ImportAST : public AST {
+    public:
+        /**
+         * @brief parse an import statement (for debugging)
+         *
+         * @return Import AST or nullptr if not found
+         */
+        static sptr<AST> parse(PARSER_FN);
+};
 

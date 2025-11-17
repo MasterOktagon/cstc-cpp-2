@@ -95,6 +95,7 @@ namespace symbol {
                 UNINITIALIZED = 0,
                 PROVIDED      = 1,
                 CONSUMED      = 2,
+                BORROWED      = 3,
             };
 
             bool             is_const   = false;
