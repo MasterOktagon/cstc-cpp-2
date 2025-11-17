@@ -384,7 +384,10 @@ disallowed:
                             tokens.cut(i, i + 2);
                             lexer::TokenStream new_tokens = lexer::tokenize(c, cst_file.string());
                             tokens.include(new_tokens, i, include_file_name.string());
+                            // DEBUG(4, "new tokens size: "_s + to_string(new_tokens.size()));
                             // DEBUG(4, "tokens size: "_s + to_string(tokens.size()));
+                            // DEBUG(4, "tokens included: "_s + *tokens[0].include);
+                            parser::error(parser::errors["Unexpected token"], tokens, "");
                         } else {
                             parser::error(parser::errors["File not found"],
                                           tokens.slice(i, i + 2),
