@@ -83,7 +83,7 @@ TEST_CASE ("Testing lexer::TokenStream::TokenStream", "[tokens]") {
     // create TokenStream
     vector<lexer::Token> tokens = {lexer::Token(), lexer::Token()};
     lexer::TokenStream   t      = lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens));
-REQUIRE(t.size() == 2);
+    REQUIRE(t.size() == 2);
     REQUIRE(t.start == 0);
     REQUIRE(t.stop == 2);
 }

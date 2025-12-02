@@ -80,4 +80,52 @@ namespace parser {
 
     extern void note(vector<lexer::Token> tokens, string msg, string appendix = "");
 
+    ///
+    /// \class that represents a string that can be displayed in a help message using a linked list
+    ///
+    class HelpBuffer {
+            friend void help();
+
+            ///
+            /// \enum internal content type
+            ///
+            enum ContentType {
+                STRING,
+                TOKEN,
+                TOKEN_STREAM
+            };
+
+            ContentType type;
+
+            union {
+                string s;
+                lexer::Token t;
+                lexer::TokenStream st;
+            };
+
+        protected:
+            sptr<HelpBuffer> next = nullptr;
+
+        public:
+            HelpBuffer(string s);
+            HelpBuffer(const char* s);
+            HelpBuffer(lexer::TokenStream t);
+            HelpBuffer(lexer::Token);
+
+            HelpBuffer& operator + (HelpBuffer other);
+            HelpBuffer& operator + (string other);
+            HelpBuffer& operator + (const char* other);
+            HelpBuffer& operator + (lexer::Token other);
+            HelpBuffer& operator + (lexer::TokenStream other);
+
+            ~HelpBuffer();
+    };
+
+    /// \brief display a help message showing what can be done to improve yor code
+    ///
+    /// \param buf HelpBuffer that should be displayed. at least one token/-stream must be supplied
+    /// \param msg warning message
+    /// \param appendix string to be displayed after this message
+    extern void help(HelpBuffer buf, string msg, string appendix="");
+
 } // namespace parser

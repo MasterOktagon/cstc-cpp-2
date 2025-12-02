@@ -5,6 +5,7 @@
 #include "../module.hpp"
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <vector>
 #include <string>
 
@@ -172,6 +173,62 @@ void parser::warn(parser::ErrorType type, vector<lexer::Token> tokens, string ms
     warnc++;
 }
 
+parser::HelpBuffer::HelpBuffer(string s){
+    type = STRING;
+    this->s = s;
+}
+
+parser::HelpBuffer::HelpBuffer(const char* s){
+    type = STRING;
+    this->s = string(s);
+}
+
+parser::HelpBuffer::HelpBuffer(lexer::Token t){
+    type = TOKEN;
+    this->t = t;
+}
+
+parser::HelpBuffer::HelpBuffer(lexer::TokenStream st){
+    type = TOKEN_STREAM;
+    this->st = st;
+}
+
+parser::HelpBuffer& parser::HelpBuffer::operator+(HelpBuffer h){
+    next = make_shared<HelpBuffer>(h);
+    return *this;
+}
+
+parser::HelpBuffer& parser::HelpBuffer::operator+(const char* h){
+    next = make_shared<HelpBuffer>(HelpBuffer(h));
+    return *this;
+}
+
+parser::HelpBuffer& parser::HelpBuffer::operator+(string h){
+    next = make_shared<HelpBuffer>(HelpBuffer(h));
+    return *this;
+}
+
+parser::HelpBuffer& parser::HelpBuffer::operator+(lexer::Token h){
+    next = make_shared<HelpBuffer>(HelpBuffer(h));
+    return *this;
+}
+
+parser::HelpBuffer& parser::HelpBuffer::operator+(lexer::TokenStream h){
+    next = make_shared<HelpBuffer>(HelpBuffer(h));
+    return *this;
+}
+
+parser::HelpBuffer operator ""h (const char* c, usize s){
+    return parser::HelpBuffer(c);
+}
+
+parser::HelpBuffer::~HelpBuffer(){
+
+}
+
+TEST_CASE("testing HelpBuffer things", "[errors]"){
+    parser::HelpBuffer h = "Hello"h + lexer::Token();
+}
 
 /*
 void parser::noteInsert(string msg, lexer::Token after, string insert, uint32 code, bool before, string appendix){
