@@ -7,7 +7,7 @@ set(ExecutableName "cstc")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CXX g++)
@@ -29,7 +29,7 @@ if ( NOT "${CMAKE_BUILD_TYPE}" )
 endif()
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     message(STATUS "Building in Debug mode...")
-    target_compile_options(${ExecutableName} PRIVATE -DDEBUG_ON -g -ggdb -W -Wall -Wextra -Wno-unused-parameter -fstrict-enums)
+    target_compile_options(${ExecutableName} PRIVATE -DENABLE_DEBUG -g -ggdb -W -Wall -Wextra -Wno-unused-parameter -fstrict-enums)
 else()
     message(STATUS "Building in Release mode...")
     target_compile_options(${ExecutableName} PRIVATE -g -W -Wall -Wextra -Wno-unused-parameter -ffold-simple-inlines -fstrict-enums)
@@ -73,17 +73,17 @@ endif()
 
 # Doxygen
 
-list(FILTER SRC EXCLUDE REGEX "${CMAKE_CURRENT_SOURCE_DIR}/lib/.*")
-list(FILTER SRC EXCLUDE REGEX ".*/src/backward.*")
-list(FILTER SRC EXCLUDE REGEX ".*/src/snippets\.hpp")
+#list(FILTER SRC EXCLUDE REGEX "${CMAKE_CURRENT_SOURCE_DIR}/lib/.*")
+#list(FILTER SRC EXCLUDE REGEX ".*/src/backward.*")
+#list(FILTER SRC EXCLUDE REGEX ".*/src/snippets\.hpp")
 
-find_package(Doxygen)
-set(DOXYGEN_GENERATE_HTML YES)
-set(DOXYGEN_GENERATE_MAN YES)
-set(DOXYGEN_OUTPUT_DIRECTORY "./docs")
-set(DOXYGEN_QUIET YES)
-doxygen_add_docs(
-        "docs"
-        ${SRC}
-        ALL
-    )
+#find_package(Doxygen)
+#set(DOXYGEN_GENERATE_HTML YES)
+#set(DOXYGEN_GENERATE_MAN YES)
+#set(DOXYGEN_OUTPUT_DIRECTORY "./docs")
+#set(DOXYGEN_QUIET YES)
+#doxygen_add_docs(
+#        "docs"
+#        ${SRC}
+#        ALL
+#    )

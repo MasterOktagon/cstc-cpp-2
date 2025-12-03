@@ -253,155 +253,41 @@ void Module::preprocess() {
     string   content = string(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
 
     tokens = lexer::tokenize(content, cst_file);
+    usize macro_passes = 0;
 
-    bool                 at_top = true;
-    lexer::Token         first;
-    uint32               macros_edited = 1;
-    vector<lexer::Token> buffer        = {};
-    while (macros_edited > 0) {
-        // string s = "";
-        // for (lexer::Token t : *tokens.tokens) { s += t.value + " "; }
-        // DEBUG(0, s);
+    usize macros_edited = 1;
+    while (macros_edited) {
         macros_edited = 0;
-        for (lexer::Token t : *tokens.tokens) {
-            if (t.type == lexer::Token::Type::END_CMD) {
-                if (buffer.size() > 0 and buffer.at(0).type == lexer::Token::Type::IMPORT) {
-                    lexer::Token::Type last = lexer::Token::Type::SUBNS;
-                    string             new_module_name;
-                    string             as;
-                    uint64             i2         = 0;
-                    bool               importall  = false;
-                    bool               has_import = false;
-                    vector<string>     from       = {};
-                    for (lexer::Token& a : buffer) {
-                        // cout << i2 << " " << new_module_name << endl;
-                        if (a.type == lexer::Token::IMPORT && !has_import) {
-                            i2++;
-                            has_import = true;
-                            continue;
-                        } else if (last == lexer::Token::SUBNS &&
-                                   (a.type == lexer::Token::DOTDOT || a.type == lexer::Token::SYMBOL)) {
-                            new_module_name += a.value;
-                        } else if (a.type == lexer::Token::SUBNS &&
-                                   (last == lexer::Token::DOTDOT || last == lexer::Token::SYMBOL)) {
-                            new_module_name += a.value;
-                        } else if ((last == lexer::Token::DOTDOT || last == lexer::Token::SYMBOL) &&
-                                   a.type == lexer::Token::Type::END_CMD) {
-                            break;
-                        } else if ((last == lexer::Token::DOTDOT || last == lexer::Token::SYMBOL) &&
-                                   a.type == lexer::Token::Type::AS) {
-                            if (buffer.size() > i2 + 2 && buffer.at(i2 + 1).type == lexer::Token::Type::SYMBOL &&
-                                buffer.at(i2 + 2).type == lexer::Token::Type::END_CMD) {
-                                string as = buffer.at(i2 + 1).value;
-                                break;
-                            } else {
-                                goto disallowed;
-                            }
-                        } else if ((last == lexer::Token::DOTDOT || last == lexer::Token::SYMBOL) &&
-                                   a.type == lexer::Token::Type::IN) {
-                            if (buffer.size() > i2 + 3 && buffer.at(i2 + 1).type == lexer::Token::Type::BLOCK_OPEN &&
-                                buffer.at(buffer.size() - 1).type == lexer::Token::Type::END_CMD &&
-                                buffer.at(buffer.size() - 2).type == lexer::Token::Type::BLOCK_CLOSE) {
-                                try {
-                                    from = getImportList(lexer::TokenStream(make_shared<vector<lexer::Token>>(
-                                                             vector(buffer.begin() + (i2 + 2), buffer.end() - 2))))
-                                               .value();
-                                    break;
-                                } catch (const bad_optional_access&) { // urgh!
-                                    goto disallowed;
-                                }
-                            } else {
-                                goto disallowed;
-                            }
-                        } else if (last == lexer::Token::SUBNS && a.type == lexer::Token::Type::MUL) {
-                            if (buffer.size() > i2 + 1 && buffer.at(i2 + 1).type == lexer::Token::Type::END_CMD &&
-                                new_module_name != "") {
-                                importall       = true;
-                                new_module_name = new_module_name.substr(0, new_module_name.size() - 2);
-                                break;
-                            } else {
-                                goto disallowed;
-                            }
-                        } else {
-                            goto disallowed; // Yay, goto
-                        }
-                        last = a.type;
-                        i2++;
-                        // cout << module_name << endl;
-                    }
-                    // cout << "New module name: " << new_module_name << endl;
-                    bool is_stdlib = false;
-                    if (new_module_name.starts_with("std::")) {
-                        new_module_name = new_module_name.substr(5);
-                        is_stdlib       = true;
-                    }
 
-                    Module* m = Module::create(new_module_name, directory.string(), cst_file, is_stdlib, buffer);
-                    if (deps.count(m->module_name)) { break; }
-                    if (m != nullptr) {
-                        deps[m->module_name] = m;
-                        for (string s : from) { import_from[s] = m->module_name + "::" + s; }
-                        if (importall) {
-                            include.push_back(m);
-                        } else if (as != "") {
-                            add(as, m);
-                        } else {
-                            contents[module_name] = {m};
-                        }
-                    }
-
-                    if (!at_top && m != nullptr) {
-                        parser::warn(parser::warnings["Import not at top"],
-                                     buffer,
-                                     "This import statement was not at the top of the module");
-                        parser::note({first}, "because of this token '"_s + first.value + "'");
-                    }
-                } else {
-                    at_top = false;
-                    if (buffer.size() > 0) { first = buffer.at(0); }
-                }
-disallowed:
-                buffer = {};
-            } else {
-                buffer.push_back(t);
-            }
-        }
         for (usize i = 0; i < tokens.size(); i++) {
-            // DEBUG(5, to_string(i) + ": " + tokens[i].value);
-            if (tokens[i].type == lexer::Token::INCLUDE) {
-                if (i < tokens.size() - 1) {
-                    lexer::Token t = tokens[i + 1];
-                    // DEBUG(5, t.value);
-                    if (t.type == lexer::Token::STRING) {
-                        std::fs::path include_file_name =
-                            std::fs::u8path(directory.string() + "/" + mod2Path(module_name)).parent_path();
-                        include_file_name += "/"_s + t.value.substr(1, t.value.size() - 2);
-                        // DEBUG(3, "including: "_s + include_file_name);
-                        if (std::fs::exists(include_file_name)) {
-                            ifstream file(include_file_name);
-                            string   c = string(istreambuf_iterator<char>(file), istreambuf_iterator<char>());
+            if (i < tokens.size() - 1) {
+                if (tokens[i].type == lexer::Token::INCLUDE and tokens[i + 1].type == lexer::Token::STRING) {
+                    std::fs::path include_file_path =
+                        std::fs::u8path(directory.string() + "/" + mod2Path(module_name)).parent_path();
+                    include_file_path += "/"_s + tokens[i + 1].value.substr(1, tokens[i + 1].value.size() - 2);
+                    if (fs::exists(include_file_path)) {
+                        DEBUG(4, "including: "_s + include_file_path.string());
+                        ifstream f(cst_file.string());
+                        string   c = string(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
+                        lexer::TokenStream new_tokens = lexer::tokenize(c);
+                        tokens.cut(i, i + 2);
+                        tokens.include(new_tokens, i, include_file_path.string());
 
-                            tokens.cut(i, i + 2);
-                            lexer::TokenStream new_tokens = lexer::tokenize(c, cst_file.string());
-                            tokens.include(new_tokens, i, include_file_name.string());
-                            // DEBUG(4, "new tokens size: "_s + to_string(new_tokens.size()));
-                            // DEBUG(4, "tokens size: "_s + to_string(tokens.size()));
-                            // DEBUG(4, "tokens included: "_s + *tokens[0].include);
-                            parser::error(parser::errors["Unexpected token"], tokens, "");
-                        } else {
-                            parser::error(parser::errors["File not found"],
-                                          tokens.slice(i, i + 2),
-                                          "No file named "_s + include_file_name.string() + " was found!");
-                            tokens.cut(i, i + 2);
-                        }
-                        macros_edited += 1;
+                        f.close();
+                    } else {
+                        parser::error(parser::errors["File not found"],
+                                      tokens.slice(i, i + 2),
+                                      "file at "_s + include_file_path.string() + " was not found!");
+                        tokens.cut(i, i + 2);
                     }
+                    macros_edited++;
                 }
             }
         }
+        macro_passes++;
     }
-    // cout << "end " << module_name << endl;
     f.close();
+    DEBUG(3, "preprocessor: "_s + module_name + " - macro passes:" + to_string(macro_passes));
 }
 
 /**

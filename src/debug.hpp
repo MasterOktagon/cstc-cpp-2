@@ -23,7 +23,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
             #define DEBUG_LVL -1
     #endif
     #define DEBUG(lvl, msg)   \
-        if (DEBUG_LVL == -1 or DEBUG_LVL >= lvl) std::cout << "\e[35;1m[DEBUG]\e[0m\e[1m @ " << __FILE__ << ":" << __LINE__ << " : \e[0m" << msg << std::endl;
+        if (DEBUG_LVL == -1 or DEBUG_LVL >= lvl) std::cout << "\r\e[35;1m[DEBUG]\e[0m\e[1m @ " << __FILE__ << ":" << __LINE__ << " : \e[0m" << msg << std::endl;
 #else
     #define DEBUG(lvl, msg)
 #endif

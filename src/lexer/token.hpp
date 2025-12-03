@@ -339,6 +339,11 @@ namespace lexer {
             ///
             void include(TokenStream t, usize idx, string filename);
 
+            ///
+            /// \brief default-construct an empty TokenStream
+            ///
+            static TokenStream none();
+
             // Match operator[](lexer::Token::Type type) { return split({type}); }
     };
 } // namespace lexer

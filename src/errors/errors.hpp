@@ -34,7 +34,7 @@ namespace parser {
     extern void unmute();
 
     /// \brief format and output an error
-    /// 
+    ///
     /// this function takes a TokenStream, so the error origin will be a continuos stream of tokens
     /// \param type ErrorType to be displayed
     /// \param tokens tokens that are causing this error
@@ -43,7 +43,7 @@ namespace parser {
     extern void error(ErrorType type, lexer::TokenStream tokens, string msg, string appendix = "");
 
     /// \brief format and output an warning
-    /// 
+    ///
     /// this function takes a TokenStream, so the warning origin will be a continuos stream of tokens
     /// \param type ErrorType to be displayed
     /// \param tokens tokens that are causing this warning
@@ -61,7 +61,7 @@ namespace parser {
     extern void note(lexer::TokenStream tokens, string msg, string appendix = "");
 
     /// \brief format and output an error
-    /// 
+    ///
     /// this function takes a vector, so the error origin will display all single tokens
     /// \param type ErrorType to be displayed
     /// \param tokens tokens that are causing this error
@@ -70,7 +70,7 @@ namespace parser {
     extern void error(ErrorType type, vector<lexer::Token> tokens, string msg, string appendix = "");
 
     /// \brief format and output an warning
-    /// 
+    ///
     /// this function takes a TokenStream, so the warning origin will display all single tokens
     /// \param type ErrorType to be displayed
     /// \param tokens tokens that are causing this warning
@@ -83,8 +83,8 @@ namespace parser {
     ///
     /// \class that represents a string that can be displayed in a help message using a linked list
     ///
-    class HelpBuffer {
-            friend void help();
+    class HelpBuffer : public Repr {
+            friend void help(HelpBuffer buf, string msg, string appendix);
 
             ///
             /// \enum internal content type
@@ -95,30 +95,64 @@ namespace parser {
                 TOKEN_STREAM
             };
 
-            ContentType type;
+            ContentType type; ///< current stored type
 
-            union {
-                string s;
-                lexer::Token t;
-                lexer::TokenStream st;
-            };
+            string             s;                               // one of these
+            lexer::Token       t;                               // holds
+            lexer::TokenStream st = lexer::TokenStream::none(); // the data
 
         protected:
-            sptr<HelpBuffer> next = nullptr;
+            sptr<HelpBuffer> next = nullptr; ///< aka linked list
+
+            /// \brief get a string representation
+            ///
+            string _str() const;
 
         public:
+            
+            /// \brief construct a HelpBuffer entry from a string
+            ///
             HelpBuffer(string s);
+
+            /// \brief construct a HelpBuffer entry from a const char*
+            ///
             HelpBuffer(const char* s);
+
+            /// \brief construct a HelpBuffer entry from a TokenStream
+            ///
             HelpBuffer(lexer::TokenStream t);
+
+            /// \brief construct a HelpBuffer entry from a Token
+            ///
             HelpBuffer(lexer::Token);
 
-            HelpBuffer& operator + (HelpBuffer other);
-            HelpBuffer& operator + (string other);
-            HelpBuffer& operator + (const char* other);
-            HelpBuffer& operator + (lexer::Token other);
-            HelpBuffer& operator + (lexer::TokenStream other);
+            /// \brief append another HelpBuffer to this one
+            ///
+            HelpBuffer operator+(HelpBuffer other);
 
+            /// \brief append another HelpBuffer to this one
+            ///
+            HelpBuffer operator+(string other);
+
+            /// \brief append another HelpBuffer to this one
+            ///
+            HelpBuffer operator+(const char* other);
+
+            /// \brief append another HelpBuffer to this one
+            ///
+            HelpBuffer operator+(lexer::Token other);
+
+            /// \brief append another HelpBuffer to this one
+            ///
+            HelpBuffer operator+(lexer::TokenStream other);
+
+            /// \brief destroy this HelpBuffer
+            ///
             ~HelpBuffer();
+
+            /// \brief append another HelpBuffer to this one
+            ///
+            void append(HelpBuffer buf);
     };
 
     /// \brief display a help message showing what can be done to improve yor code
@@ -126,6 +160,6 @@ namespace parser {
     /// \param buf HelpBuffer that should be displayed. at least one token/-stream must be supplied
     /// \param msg warning message
     /// \param appendix string to be displayed after this message
-    extern void help(HelpBuffer buf, string msg, string appendix="");
+    extern void help(HelpBuffer buf, string msg, string appendix = "");
 
 } // namespace parser
