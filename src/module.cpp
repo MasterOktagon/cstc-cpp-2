@@ -95,14 +95,14 @@ Module* Module::create(string path,
 
     fs::path directory = fs::current_path();
     if (is_stdlib) {
-        directory   = fs::u8path(h(stdLibLocation()));
+        directory   = fs::path(h(stdLibLocation()));
         module_name = path2Mod(path);
         module_name = ""s + module_name;
     } else {
         if (!from_path) {
-            directory = fs::u8path(overpath).parent_path();
+            directory = fs::path(overpath).parent_path();
             module_name =
-                path2Mod(fs::relative(fs::u8path(overpath).parent_path(), fs::current_path()).string() + "/" + path);
+                path2Mod(fs::relative(fs::path(overpath).parent_path(), fs::current_path()).string() + "/" + path);
         } else {
             module_name = path2Mod(path);
         }
@@ -154,9 +154,9 @@ Module::Module(string path, string dir, string module_name, bool is_stdlib, bool
     this->module_name  = module_name;
     ////cout << "name: " <<  this->module_name << endl;
 
-    directory = fs::u8path(dir);
-    cst_file  = fs::u8path(dir + "/" + path + ".cst");
-    hst_file  = fs::u8path(dir + "/" + path + ".hst");
+    directory = fs::path(dir);
+    cst_file  = fs::path(dir + "/" + path + ".cst");
+    hst_file  = fs::path(dir + "/" + path + ".hst");
 
     cout << "\rFetching modules: (" << known_modules.size() + 1 << "/?)";
     if (module_name != "lang" && known_modules.count("lang") > 0) { include.push_back(known_modules["lang"]); }
@@ -202,7 +202,8 @@ string Module::mod2Path(string mod) {
 string Module::_str() const {
     return fillup("\e[1m"s + module_name + "\e[0m", 50) + (isHeader() ? "\e[36;1m[h]\e[0m"s : "   "s) +
            (is_main_file ? "\e[32;1m[m]\e[0m"s : "   "s) + (is_stdlib ? "\e[33;1m[s]\e[0m"s : "   "s) +
-           (module_name == "lang" ? "\e[1m[l]\e[0m"s : "   "s) + " @ " + (cst_file.string());
+           (module_name == "lang" ? "\e[1m[l]\e[0m"s : "   "s) + " @ \e]8;;file://" + (cst_file.string()) + "\e\\" +
+           (cst_file.string()) + "\e]8;;\e\\";
 }
 
 /**
@@ -252,10 +253,11 @@ void Module::preprocess() {
     ifstream f(cst_file.string());
     string   content = string(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
 
-    tokens = lexer::tokenize(content, cst_file);
+    tokens             = lexer::tokenize(content, cst_file);
     usize macro_passes = 0;
 
     usize macros_edited = 1;
+    usize cmd_begin     = 0;
     while (macros_edited) {
         macros_edited = 0;
 
@@ -263,12 +265,12 @@ void Module::preprocess() {
             if (i < tokens.size() - 1) {
                 if (tokens[i].type == lexer::Token::INCLUDE and tokens[i + 1].type == lexer::Token::STRING) {
                     std::fs::path include_file_path =
-                        std::fs::u8path(directory.string() + "/" + mod2Path(module_name)).parent_path();
+                        std::fs::path(directory.string() + "/" + mod2Path(module_name)).parent_path();
                     include_file_path += "/"_s + tokens[i + 1].value.substr(1, tokens[i + 1].value.size() - 2);
                     if (fs::exists(include_file_path)) {
                         DEBUG(4, "including: "_s + include_file_path.string());
-                        ifstream f(cst_file.string());
-                        string   c = string(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
+                        ifstream           f(include_file_path.string());
+                        string             c = string(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
                         lexer::TokenStream new_tokens = lexer::tokenize(c);
                         tokens.cut(i, i + 2);
                         tokens.include(new_tokens, i, include_file_path.string());
@@ -283,11 +285,53 @@ void Module::preprocess() {
                     macros_edited++;
                 }
             }
+            if (tokens[i].type == lexer::Token::BLOCK_OPEN or tokens[i].type == lexer::Token::BLOCK_CLOSE) {
+                cmd_begin = i + 1;
+            }
+            if (tokens[i].type == lexer::Token::END_CMD) {
+                lexer::TokenStream cmd = tokens.slice(cmd_begin, i);
+                DEBUG(2, str(cmd));
+
+                if (cmd[0].type == lexer::Token::IMPORT) {
+                    lexer::TokenStream import_content = cmd.slice(0, cmd.size());
+
+                    vector<lexer::TokenStream> parts = cmd.list({lexer::Token::SUBNS});
+                    if (parts.size() > 0) {
+                        string         modname;
+                        vector<string> includes;
+                        bool           break_case = false;
+
+                        for (usize j = 0; j < parts.size() - 1; j++) {
+                            if (parts[parts.size() - 1].size() == 1) {
+                                if (parts[parts.size() - 1][0].type == lexer::Token::SYMBOL) {
+                                    modname += parts[parts.size() - 1][0].value + "/";
+                                }
+                            } else {
+                                break_case = true;
+                            }
+                        }
+                        if (!break_case) {
+                            lexer::TokenStream t = parts[parts.size() - 1];
+                            if (t.size() == 1) {
+                                if (t[0].type == lexer::Token::SYMBOL) { modname += t[0].value; }
+                            } else if (t.size() >= 3) {
+                                if (t[0].type == lexer::Token::IN and t[1].type == lexer::Token::BLOCK_OPEN and
+                                    t[-1].type == lexer::Token::BLOCK_CLOSE) {
+                                    // TODO
+                                }
+                            }
+                            DEBUG(2, "modname: "_s + modname);
+                        }
+                    }
+                }
+
+                cmd_begin = i + 1;
+            }
         }
         macro_passes++;
     }
     f.close();
-    DEBUG(3, "preprocessor: "_s + module_name + " - macro passes:" + to_string(macro_passes));
+    DEBUG(3, "preprocessor: "_s + fillup(module_name, 50) + " - macro passes:" + to_string(macro_passes));
 }
 
 /**

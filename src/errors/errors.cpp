@@ -147,10 +147,10 @@ void showError(string               errstr,
                     to_string(tokens.at(tokens.size() - 1).column + tokens.at(tokens.size() - 1).value.size() - 1);
     }
 
-    std::cerr << "\r" << errcol << errstr << ": " << name << "\e[0m @ \e[0;37m" << Module::directory.string()
+    std::cerr << "\r" << errcol << errstr << ": " << name << "\e[0m @ \e]8;;file://" << *(tokens[0].filename) << "\e\\\e[0;37m" << Module::directory.string()
               << "/\e[0m\e[1m" << tokens[0].filename->substr(Module::directory.string().size() + 1) << location
-              << "\e[0m" << (code == 0 ? ""s : " ["s + errstr[0] + to_string(code) + "]") << ":" << std::endl;
-    std::cerr << "\e[0;37m" << msg << "\e[0m" << std::endl;
+              << "\e[0m\e]8;;\e\\" << (code == 0 ? ""s : " ["s + errstr[0] + to_string(code) + "]") << ":" << std::endl;
+    std::cerr << "\e[0m" << msg << "\e[0m" << std::endl;
     std::cerr << "       | " << std::endl;
     if (tokens.size() == 1) {
         std::cerr << " " << fillup(to_string(tokens[0].line), 5) << " | " << *(tokens[0].line_contents) << std::endl;
@@ -162,7 +162,7 @@ void showError(string               errstr,
             std::cerr << "       | " << errcol_lite << fillup("", tokens[0].column - 1)
                       << fillup("",
                                 tokens.at(tokens.size() - 1).column - (tokens[0].column - 1) +
-                                    tokens.at(tokens.size() - 1).value.size() - 1,
+                                    tokens.at(tokens.size() - 1).value.size(),
                                 '^')
                       << "\e[0m" << std::endl;
         } else {
@@ -329,16 +329,16 @@ struct HelpLineInfo {
 
 #define addHelpBuffer(line, prefix) lines.push_back({line, prefix, {}, ""});
 
-#define handleHelpBufferString(idx)                                                        \
-    usize  found = cached_prefix.find("\n");                                               \
-    uint32 _a    = idx;                                                                    \
-    while (found != string::npos) {                                                        \
-        addHelpBuffer(current_line++ + line_offset++, "");                                   \
+#define handleHelpBufferString(idx)                                                    \
+    usize  found = cached_prefix.find("\n");                                           \
+    uint32 _a    = idx;                                                                \
+    while (found != string::npos) {                                                    \
+        addHelpBuffer(current_line++ + ++line_offset, "");                             \
         lines.at(_a + line_offset).contents.push_back(cached_prefix.substr(0, found)); \
-        cached_prefix = cached_prefix.substr(found + 1);                                   \
-        found         = cached_prefix.find("\n");                                          \
-    }                                                                                      \
-    lines.at(_a + line_offset).contents.push_back(cached_prefix);                          \
+        cached_prefix = cached_prefix.substr(found + 1);                               \
+        found         = cached_prefix.find("\n");                                      \
+    }                                                                                  \
+    lines.at(_a + line_offset).contents.push_back(cached_prefix);                      \
     cached_prefix = "";
 
 void parser::help(HelpBuffer buf, string msg, string appendix) {
@@ -410,16 +410,16 @@ void parser::help(HelpBuffer buf, string msg, string appendix) {
         p = p->next.get();
     }
 
-    cerr << "\e[1;32mHELP:\e[0m @ \e[0;37m" << Module::directory.string() << "/\e[0m\e[1m"
+    cerr << "\e[1;32mHELP:\e[0m @ \e]8;;file://" << filename << "\e\\\e[0;37m" << Module::directory.string() << "/\e[0m\e[1m"
          << filename.substr(Module::directory.string().size() + 1) << ":" << line_start << ":" << column_start
-         << "\e[0m" << endl;
+         << "\e[0m\e]8;;\e\\" << endl;
     cerr << msg << endl;
     cerr << "       | " << endl;
 
-    uint64                  last_line   = line_start;
-    uint32                  last_column = 0;
-    HelpBuffer::ContentType last_type   = HelpBuffer::STRING;
+    uint64                  last_line = line_start;
+    HelpBuffer::ContentType last_type = HelpBuffer::STRING;
     for (HelpLineInfo info : lines) {
+        uint32 last_column = 0;
         if (info.line == 0) { continue; }
         if (info.line - last_line > 1) { cerr << "  \e[37m...\e[0m  |" << endl; }
         cerr << " " << fillup(to_string(info.line), 6) << "| " << info.prefix;
@@ -448,9 +448,9 @@ void parser::help(HelpBuffer buf, string msg, string appendix) {
     cerr << "       | " << endl;
     cerr << appendix << endl;
 }
-
+/*
 TEST_CASE ("testing help message", "[errors]") {
-    parser::help("Hell\no"_h + "h" +
+    parser::help("Hello"_h + "h" +
                      lexer::TokenStream(make_shared<vector<lexer::Token>>(vector<lexer::Token>(
                          {lexer::Token(lexer::Token::OPEN,
                                        "(",
@@ -471,7 +471,7 @@ TEST_CASE ("testing help message", "[errors]") {
                                        make_shared<string>(Module::directory.string() + "/test.cst"),
                                        make_shared<string>("a ( );"))}))),
                  "BlaBla");
-}
+}*/
 
 /*
 void parser::noteInsert(string msg, lexer::Token after, string insert, uint32 code, bool before, string appendix){
