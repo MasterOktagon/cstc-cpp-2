@@ -1,1 +1,4 @@
-include "included.txt"
+import test2 as hallo;
+
+
+

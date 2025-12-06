@@ -25,7 +25,7 @@
 #include <iostream>
 #include <list>
 #include <map>
-#include <memory>
+// #include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -97,7 +97,6 @@ Module* Module::create(string path,
     if (is_stdlib) {
         directory   = fs::path(h(stdLibLocation()));
         module_name = path2Mod(path);
-        module_name = ""s + module_name;
     } else {
         if (!from_path) {
             directory = fs::path(overpath).parent_path();
@@ -293,34 +292,55 @@ void Module::preprocess() {
                 DEBUG(2, str(cmd));
 
                 if (cmd[0].type == lexer::Token::IMPORT) {
-                    lexer::TokenStream import_content = cmd.slice(0, cmd.size());
+                    lexer::TokenStream import_content = cmd.slice(1, cmd.size());
 
-                    vector<lexer::TokenStream> parts = cmd.list({lexer::Token::SUBNS});
+                    string alias = "";
+
+                    lexer::TokenStream::Match m = import_content.splitStack({lexer::Token::AS});
+                    if (m.found()){
+                        DEBUG(5, "import as found!");
+                        import_content = m.before();
+                        DEBUG(5, str(import_content));
+                        lexer::TokenStream alias_stream = m.after();
+                        if (alias_stream.size() == 1 and alias_stream[0].type == lexer::Token::SYMBOL){
+                            alias = alias_stream[0].value;
+                            DEBUG(3, "import alias: "_s + alias);
+                        }
+                    }
+
+                    vector<lexer::TokenStream> parts = import_content.list({lexer::Token::SUBNS});
                     if (parts.size() > 0) {
+                        DEBUG(3, "import parts: "_s + to_string(parts.size()));
                         string         modname;
                         vector<string> includes;
                         bool           break_case = false;
 
                         for (usize j = 0; j < parts.size() - 1; j++) {
                             if (parts[parts.size() - 1].size() == 1) {
-                                if (parts[parts.size() - 1][0].type == lexer::Token::SYMBOL) {
-                                    modname += parts[parts.size() - 1][0].value + "/";
+                                if (parts[parts.size() - 1][0].type == lexer::Token::SYMBOL ||
+                                    parts[parts.size() - 1][0].type == lexer::Token::DOTDOT) {
+                                    modname += parts[parts.size() - 1][0].value + "::";
                                 }
                             } else {
                                 break_case = true;
                             }
                         }
-                        if (!break_case) {
+                        if (!break_case or parts.size() == 1) {
                             lexer::TokenStream t = parts[parts.size() - 1];
+                            DEBUG(5, "import final part: "_s + str(t));
                             if (t.size() == 1) {
                                 if (t[0].type == lexer::Token::SYMBOL) { modname += t[0].value; }
                             } else if (t.size() >= 3) {
                                 if (t[0].type == lexer::Token::IN and t[1].type == lexer::Token::BLOCK_OPEN and
                                     t[-1].type == lexer::Token::BLOCK_CLOSE) {
-                                    // TODO
+                                    if (modname != "") { modname = modname.substr(2); }
                                 }
                             }
-                            DEBUG(2, "modname: "_s + modname);
+                            if (modname != "") {
+                                DEBUG(2, "modname: "_s + modname);
+                                Module* m = Module::create(modname, "", cst_file, false, *cmd.tokens);
+                                if (m != nullptr) { add(alias == ""? modname : alias, m); }
+                            }
                         }
                     }
                 }

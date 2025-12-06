@@ -11,6 +11,7 @@
 #include <stack>
 #include <string>
 #include <vector>
+#include "../debug.hpp"
 
 using namespace std;
 
@@ -160,6 +161,7 @@ lexer::TokenStream::Match lexer::TokenStream::splitStack(
             else if (mapping_rev.count(t.type)){
                 if (typestack.top() != mapping_rev[t.type]){
                     // ERROR
+                    DEBUG(4, "dmfmgmkmgöpkoek");
                 }
                 typestack.pop();
             }
