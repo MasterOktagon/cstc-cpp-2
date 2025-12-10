@@ -4,14 +4,15 @@
 #include "../snippets.hpp"
 
 #include <algorithm>
-//#include <cstddef>
-//#include <iostream>
+// #include <cstddef>
+// #include <iostream>
+#include "../debug.hpp"
+
 #include <iterator>
 #include <memory>
 #include <stack>
 #include <string>
 #include <vector>
-#include "../debug.hpp"
 
 using namespace std;
 
@@ -59,7 +60,7 @@ string lexer::TokenStream::_str() const {
 lexer::TokenStream::Match::Match(uint64 at, const TokenStream* on) {
     this->at        = at;
     this->was_found = true;
-    this->on        = on;
+    this->on        = make_shared<TokenStream>(*on);
 }
 
 /// \brief construct a new Match
@@ -81,6 +82,7 @@ lexer::TokenStream::TokenStream(sptr<vector<Token>> tokens, uint64 start, uint64
     this->start = start;
 }
 
+
 TEST_CASE ("Testing lexer::TokenStream::TokenStream", "[tokens]") {
     // create TokenStream
     vector<lexer::Token> tokens = {lexer::Token(), lexer::Token()};
@@ -98,6 +100,8 @@ REQUIRE(t.size() == 2);
 /// \param start start index offset from this start. Negative values will start from the Back
 /// \param stop  stop index offset from this <u>start</u>. Negative values will start from the Back
 lexer::TokenStream lexer::TokenStream::slice(int64 start, int64 stop) const {
+    if (start < 0) start = size()+start;
+    if (stop < 0) stop = size()+stop;
     return lexer::TokenStream(tokens, this->start+start, this->start+stop);
 }
 
@@ -150,7 +154,7 @@ lexer::TokenStream::Match lexer::TokenStream::splitStack(
 
         uint32 idx = start_idx;
         for(;idx < size(); idx++){
-            Token& t = tokens->at(idx);
+            Token& t = tokens->at(this->start+idx);
             if (typestack.size() == 0 and find(sep.begin(), sep.end(), t.type) != sep.end()) {
                 return Match(idx, this);
             }
@@ -161,7 +165,6 @@ lexer::TokenStream::Match lexer::TokenStream::splitStack(
             else if (mapping_rev.count(t.type)){
                 if (typestack.top() != mapping_rev[t.type]){
                     // ERROR
-                    DEBUG(4, "dmfmgmkmgöpkoek");
                 }
                 typestack.pop();
             }
@@ -217,7 +220,7 @@ lexer::TokenStream::Match lexer::TokenStream::rsplitStack(
 
         int32 idx = size()-1;
         for(;idx >= 0; idx--){
-            Token& t = tokens->at(idx);
+            Token& t = tokens->at(this->start+idx);
             if (typestack.size() == 0 and find(sep.begin(), sep.end(), t.type) != sep.end()) {
                 return Match(idx, this);
             }

@@ -214,7 +214,7 @@ namespace lexer {
             class Match final {
                     uint64             at        = 0;       ///< where this result was found (relative index)
                     bool               was_found = false;   ///< whether something was found
-                    const TokenStream* on        = nullptr; ///< on what stream it was found
+                    sptr<TokenStream>  on        = nullptr; ///< on what stream it was found
 
                 public:
                     /// \brief construct a new Match

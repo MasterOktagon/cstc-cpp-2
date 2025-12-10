@@ -298,10 +298,9 @@ void Module::preprocess() {
 
                     lexer::TokenStream::Match m = import_content.splitStack({lexer::Token::AS});
                     if (m.found()){
-                        DEBUG(5, "import as found!");
-                        import_content = m.before();
-                        DEBUG(5, str(import_content));
+                        DEBUG(5, "import as found at "_s + to_string(m));
                         lexer::TokenStream alias_stream = m.after();
+                        import_content = m.before();
                         if (alias_stream.size() == 1 and alias_stream[0].type == lexer::Token::SYMBOL){
                             alias = alias_stream[0].value;
                             DEBUG(3, "import alias: "_s + alias);
