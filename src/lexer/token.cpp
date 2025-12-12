@@ -218,7 +218,7 @@ lexer::TokenStream::Match lexer::TokenStream::rsplitStack(
         map<lexer::Token::Type, lexer::Token::Type> mapping = invert(mapping_rev);
         stack<lexer::Token::Type> typestack = {};
 
-        int32 idx = size()-1;
+        int32 idx = size()-1-start_idx;
         for(;idx >= 0; idx--){
             Token& t = tokens->at(this->start+idx);
             if (typestack.size() == 0 and find(sep.begin(), sep.end(), t.type) != sep.end()) {
