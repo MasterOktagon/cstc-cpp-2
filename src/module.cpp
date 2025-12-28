@@ -81,11 +81,11 @@ bool Module::isKnown() const {
  */
 Module* Module::create(string path,
                        string,
-                       string               overpath,
-                       bool                 is_stdlib,
-                       vector<lexer::Token> tokens,
-                       bool                 is_main_file,
-                       bool                 from_path) {
+                       string             overpath,
+                       bool               is_stdlib,
+                       lexer::TokenStream tokens,
+                       bool               is_main_file,
+                       bool               from_path) {
     string module_name = "<unknown>";
     if (!from_path) { path = mod2Path(path); }
     usize pos = path.rfind(".");
@@ -127,9 +127,10 @@ Module* Module::create(string path,
         modules.push_back(known_modules[module_name]);
         return known_modules[module_name];
     }
-    if (find(unknown_modules.begin(), unknown_modules.end(), module_name) == unknown_modules.end()) {
+    if (find(unknown_modules.begin(), unknown_modules.end(), module_name) == unknown_modules.end() and
+        not tokens.empty()) {
         parser::error(parser::errors["Module not found"],
-                      vector<lexer::Token>(tokens.begin() + 1, tokens.end() - 1),
+                      tokens,
                       "A module at "_s + directory.string() + "/" + path + " was not found");
         unknown_modules.push_back(module_name);
     }
@@ -270,9 +271,8 @@ void Module::preprocess() {
                         DEBUG(4, "including: "_s + include_file_path.string());
                         ifstream           f(include_file_path.string());
                         string             c = string(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
-                        lexer::TokenStream new_tokens = lexer::tokenize(c);
-                        tokens.cut(i, i + 2);
-                        tokens.include(new_tokens, i, include_file_path.string());
+                        lexer::TokenStream new_tokens = lexer::tokenize(c, include_file_path.string());
+                        tokens.include(i, i+2, new_tokens);
 
                         f.close();
                     } else {
@@ -282,6 +282,7 @@ void Module::preprocess() {
                         tokens.cut(i, i + 2);
                     }
                     macros_edited++;
+                    break;
                 }
             }
             if (tokens[i].type == lexer::Token::BLOCK_OPEN or tokens[i].type == lexer::Token::BLOCK_CLOSE) {
@@ -297,17 +298,19 @@ void Module::preprocess() {
                     string alias = "";
 
                     lexer::TokenStream::Match m = import_content.splitStack({lexer::Token::AS});
-                    if (m.found()){
+                    if (m.found()) {
                         DEBUG(5, "import as found at "_s + to_string(m));
                         lexer::TokenStream alias_stream = m.after();
-                        import_content = m.before();
-                        if (alias_stream.size() == 1 and alias_stream[0].type == lexer::Token::SYMBOL){
+                        import_content                  = m.before();
+                        if (alias_stream.size() == 1 and alias_stream[0].type == lexer::Token::SYMBOL) {
                             alias = alias_stream[0].value;
                             DEBUG(3, "import alias: "_s + alias);
                         }
                     }
 
-                    vector<lexer::TokenStream> parts = import_content.list({lexer::Token::SUBNS});
+                    DEBUG(4, "import_content: "_s + str(import_content));
+                    vector<lexer::TokenStream> parts =
+                        import_content.list({lexer::Token::SUBNS}, false, "(sub)module name");
                     if (parts.size() > 0) {
                         DEBUG(3, "import parts: "_s + to_string(parts.size()));
                         string         modname;
@@ -315,10 +318,10 @@ void Module::preprocess() {
                         bool           break_case = false;
 
                         for (usize j = 0; j < parts.size() - 1; j++) {
-                            if (parts[parts.size() - 1].size() == 1) {
-                                if (parts[parts.size() - 1][0].type == lexer::Token::SYMBOL ||
-                                    parts[parts.size() - 1][0].type == lexer::Token::DOTDOT) {
-                                    modname += parts[parts.size() - 1][0].value + "::";
+                            if (parts[j].size() == 1) {
+                                if (parts[j][0].type == lexer::Token::SYMBOL ||
+                                    parts[j][0].type == lexer::Token::DOTDOT) {
+                                    modname += parts[j][0].value + "::";
                                 }
                             } else {
                                 break_case = true;
@@ -327,6 +330,7 @@ void Module::preprocess() {
                         if (!break_case or parts.size() == 1) {
                             lexer::TokenStream t = parts[parts.size() - 1];
                             DEBUG(5, "import final part: "_s + str(t));
+                            DEBUG(5, "import first part: "_s + str(parts[0]) + "/" + to_string(parts[0][0].type));
                             if (t.size() == 1) {
                                 if (t[0].type == lexer::Token::SYMBOL) { modname += t[0].value; }
                             } else if (t.size() >= 3) {
@@ -337,8 +341,9 @@ void Module::preprocess() {
                             }
                             if (modname != "") {
                                 DEBUG(2, "modname: "_s + modname);
-                                Module* m = Module::create(modname, "", cst_file, false, *cmd.tokens);
-                                if (m != nullptr) { add(alias == ""? modname : alias, m); }
+                                DEBUG(4, "import_content: "_s + str(import_content));
+                                Module* m = Module::create(modname, "", cst_file, false, import_content);
+                                if (m != nullptr) { add(alias == "" ? modname : alias, m); }
                             }
                         }
                     }

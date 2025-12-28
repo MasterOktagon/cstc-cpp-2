@@ -102,7 +102,7 @@ class Module final : public symbol::Namespace {
                               string               dir,
                               string               overpath,
                               bool                 is_stdlib,
-                              vector<lexer::Token> tokens       = {},
+                              lexer::TokenStream   tokens       = lexer::TokenStream::none(),
                               bool                 is_main_file = false,
                               bool                 from_path    = false);
 };

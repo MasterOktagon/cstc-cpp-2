@@ -8,6 +8,7 @@
 #include "errors/errors.hpp"
 #include "helpers/string_functions.hpp"
 #include "lexer/lexer.hpp"
+#include "lexer/token.hpp"
 #include "module.hpp"
 #include "snippets.hpp"
 // #include "build/targets.hpp"
@@ -141,7 +142,7 @@ int32 main(int32 argc, const char** argv) {
                  << endl;
         }
     }
-    Module::create(main_file, fs::current_path().string(), "", false, {}, true, true);
+    Module::create(main_file, fs::current_path().string(), "", false, lexer::TokenStream::none(), true, true);
 
     // sort modules for parsing
     Module::modules.sort(Module::loadOrder);
@@ -180,11 +181,9 @@ int32 main(int32 argc, const char** argv) {
             cout << "\e[1;31mCompilation aborted\e[0m\n";
             exit(2);
         }
-        goto compile;
-    } else {
-compile:
-        cout << "Complete!" << endl;
     }
+    
+    cout << "Complete!" << endl;
 
     return PROGRAM_EXIT;
 }

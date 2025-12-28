@@ -362,17 +362,17 @@ void EmptyLiteralAST::consume(CstType type) {
 /*
 sptr<AST> ArrayFieldMultiplierAST::parse(PARSER_FN_PARAM) {
     DEBUG(4, "Trying \e[1mArrayFieldMultiplierAST::parse\e[0m");
-    lexer::TokenStream::Match m = tokens.rsplitStack({lexer::Token::X});
+    lexer::TokenStream::Match m = tokens.rsplitStack({lexer::Token::FOR});
     if (m.found()) {
         DEBUG(3, "ArrayFieldMultiplierAST::parse");
         sptr<AST> content = math::parse(m.before(), local, sr);
         if (content == nullptr) {
-            parser::error(parser::errors["Expression expected"], m.after(), "Expected a valid expression before 'x'", 0);
+            parser::error(parser::errors["Expression expected"], m.after(), "Expected a valid expression before 'for'", 0);
             return ERR;
         }
         sptr<AST> amount  = math::parse(m.after(), local, sr);
         if (amount == nullptr) {
-            parser::error(parser::errors["Amount expected"], m.after(), "Expected an amount after 'x'", 0);
+            parser::error(parser::errors["Amount expected"], m.after(), "Expected an amount after 'for'", 0);
             return ERR;
         }
         amount->consume("usize"_c);

@@ -12,13 +12,26 @@
 
 #include <optional>
 
-#define PARSER_FN                                                                   \
-    lexer::TokenStream, int local, symbol::Namespace *sr,                           \
+#define PARSER_FN                                                                    \
+    lexer::TokenStream, int local, symbol::Namespace *sr,                            \
         string expected_type = "@unknown" ///< used to template all parser functions
 #define PARSER_FN_PARAM      lexer::TokenStream tokens, int local, symbol::Namespace *sr, string expected_type
 #define PARSER_FN_NO_DEFAULT callable<sptr<AST>, lexer::TokenStream, int, symbol::Namespace*, string>
 #define ERR                  sptr<AST>(new AST)
 #define PUT_PT(s, a)         (a ? "("_s + s + ")" : s)
+
+class AST;
+
+///
+/// \class represents an AST tree to walk
+///
+class ASTVisitor : public Repr {
+    public:
+        ///
+        /// \brief visit a Node with this visitor
+        ///
+        virtual void visit(AST&) abstract;
+};
 
 ///
 /// \class represents an AST node
@@ -46,9 +59,9 @@ class AST : public Repr {
 
         void setTokens(lexer::TokenStream tokens) { this->tokens = tokens; }
 
-        /// 
+        ///
         /// \brief get the return type (C*) of this Node, or @unknown
-        /// 
+        ///
         virtual CstType getCstType() const;
 
         ///
@@ -65,19 +78,24 @@ class AST : public Repr {
         ///
         virtual CstType provide();
 
-        /// 
+        ///
         /// \brief emit C* code
         ///
         virtual string emitCST() const;
 
-        /// 
+        ///
         /// \brief get this Nodes work size (in Nodes) for progress reports
         ///
         virtual uint64 nodeSize() const { return 0; }
 
         ///
         /// \brief get if this expression is constant
-        /// 
-        bool isConst() const {return const_value.has_value();}
+        ///
+        bool isConst() const { return const_value.has_value(); }
+
+        ///
+        /// \brief visit this Node with an AST visitor
+        ///
+        virtual void visit(ASTVisitor& v) { v.visit(*this); }
 };
 

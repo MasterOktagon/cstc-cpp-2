@@ -1,1 +1,1 @@
-i
+import a::::test2 as hallo;

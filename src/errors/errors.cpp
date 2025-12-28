@@ -125,14 +125,14 @@ void parser::unmute() {
     muted = false;
 }
 
-void showError(string               errstr,
-               string               errcol,
-               string               errcol_lite,
-               string               name,
-               string               msg,
-               vector<lexer::Token> tokens,
-               uint32               code,
-               string               appendix) {
+void showError(string             errstr,
+               string             errcol,
+               string             errcol_lite,
+               string             name,
+               string             msg,
+               lexer::TokenStream tokens,
+               uint32             code,
+               string             appendix) {
     if (muted) { return; }
     if (tokens.size() == 0) {
         std::cerr << "OH NO! " << errstr << " " << name << " could not be displayed:\n" << msg << "\n";
@@ -143,13 +143,14 @@ void showError(string               errstr,
         location = ":"s + to_string(tokens[0].line) + ":" + to_string(tokens[0].column);
     } else {
         location  = ":"s + to_string(tokens[0].line) + ":" + to_string(tokens[0].column);
-        location += " - " + to_string(tokens.at(tokens.size() - 1).line) + ":" +
-                    to_string(tokens.at(tokens.size() - 1).column + tokens.at(tokens.size() - 1).value.size() - 1);
+        location += " - " + to_string(tokens[tokens.size() - 1].line) + ":" +
+                    to_string(tokens[tokens.size() - 1].column + tokens[tokens.size() - 1].value.size() - 1);
     }
 
-    std::cerr << "\r" << errcol << errstr << ": " << name << "\e[0m @ \e]8;;file://" << *(tokens[0].filename) << "\e\\\e[0;37m" << Module::directory.string()
-              << "/\e[0m\e[1m" << tokens[0].filename->substr(Module::directory.string().size() + 1) << location
-              << "\e[0m\e]8;;\e\\" << (code == 0 ? ""s : " ["s + errstr[0] + to_string(code) + "]") << ":" << std::endl;
+    std::cerr << "\r" << errcol << errstr << ": " << name << "\e[0m @ \e]8;;file://" << *(tokens[0].filename)
+              << "\e\\\e[0;37m" << Module::directory.string() << "/\e[0m\e[1m"
+              << tokens[0].filename->substr(Module::directory.string().size() + 1) << location << "\e[0m\e]8;;\e\\"
+              << (code == 0 ? ""s : " ["s + errstr[0] + to_string(code) + "]") << ":" << std::endl;
     std::cerr << "\e[0m" << msg << "\e[0m" << std::endl;
     std::cerr << "       | " << std::endl;
     if (tokens.size() == 1) {
@@ -158,30 +159,28 @@ void showError(string               errstr,
                   << fillup("", tokens[0].value.size(), '^') << "\e[0m" << std::endl;
     } else {
         std::cerr << " " << fillup(to_string(tokens[0].line), 5) << " | " << (*(tokens[0].line_contents)) << std::endl;
-        if (tokens[0].line == tokens.at(tokens.size() - 1).line) {
+        if (tokens[0].line == tokens[tokens.size() - 1].line) {
             std::cerr << "       | " << errcol_lite << fillup("", tokens[0].column - 1)
                       << fillup("",
-                                tokens.at(tokens.size() - 1).column - (tokens[0].column - 1) +
-                                    tokens.at(tokens.size() - 1).value.size(),
+                                tokens[tokens.size() - 1].column - (tokens[0].column) +
+                                    tokens[tokens.size() - 1].value.size(),
                                 '^')
                       << "\e[0m" << std::endl;
         } else {
             std::cerr << "       | " << errcol_lite << fillup("", tokens[0].column - 1)
                       << fillup("", (*(tokens[0].line_contents)).size() - (tokens[0].column - 1) - 1, '^') << "\e[0m"
                       << std::endl;
-            if (tokens.at(tokens.size() - 1).line - tokens[0].line > 1) {
+            if (tokens[tokens.size() - 1].line - tokens[0].line > 1) {
                 std::cerr << "       | \t" << errcol_lite << "("
-                          << to_string(tokens.at(tokens.size() - 1).line - tokens[0].line - 1) << " line"
-                          << (tokens.at(tokens.size() - 1).line - tokens[0].line - 1 == 1 ? "" : "s") << " hidden)\e[0m"
+                          << to_string(tokens[tokens.size() - 1].line - tokens[0].line - 1) << " line"
+                          << (tokens[tokens.size() - 1].line - tokens[0].line - 1 == 1 ? "" : "s") << " hidden)\e[0m"
                           << std::endl;
             }
 
-            std::cerr << " " << fillup(to_string(tokens.at(tokens.size() - 1).line), 5) << " | "
-                      << *(tokens.at(tokens.size() - 1).line_contents) << std::endl;
+            std::cerr << " " << fillup(to_string(tokens[tokens.size() - 1].line), 5) << " | "
+                      << *(tokens[tokens.size() - 1].line_contents) << std::endl;
             std::cerr << "       | " << errcol_lite
-                      << fillup("",
-                                tokens.at(tokens.size() - 1).column + tokens.at(tokens.size() - 1).value.size() - 1,
-                                '^')
+                      << fillup("", tokens[tokens.size() - 1].column + tokens[tokens.size() - 1].value.size() - 1, '^')
                       << "\e[0m" << std::endl;
         }
     }
@@ -194,53 +193,80 @@ vector<lexer::TokenStream> splitIncluded(lexer::TokenStream tokens) {
     vector<lexer::TokenStream> out          = {};
     usize                      i            = 0;
     usize                      start        = 0;
-    string                     last_include = tokens[0].include ? *tokens[0].include : "";
+    sptr<lexer::TokenStream>   last_include = tokens[0].include;
 
     while (i < tokens.size()) {
-        while (i < tokens.size() and (tokens[i].include ? *tokens[i].include : "") == last_include) { i++; }
-        if (last_include != "" and start != i) { out.push_back(tokens.slice(start, i)); }
+        while (i < tokens.size() and (tokens[i].include) == last_include) { i++; }
+        if (last_include != nullptr and start != i) {
+            if (start != i) { out.push_back(tokens.slice(start, i)); }
+        }
         start = i;
-        if (i < tokens.size()) { last_include = tokens[i].include ? *tokens[i].include : ""; }
+        if (i < tokens.size()) { last_include = tokens[i].include; }
     }
-    if (last_include != "" and start != i) { out.push_back(tokens.slice(start, i)); }
+    if (last_include != nullptr and start != i) {
+        if (start != i) { out.push_back(tokens.slice(start, i)); }
+    }
     return out;
 }
 
+// TODO
+void noteIncludeMacro(lexer::TokenStream tokens) {
+    vector<lexer::TokenStream> includes = splitIncluded(tokens);
+    for (lexer::TokenStream t : includes) { parser::note(*t[0].include, "included from file: " + *t[0].filename); }
+}
+
 void parser::error(ErrorType type, lexer::TokenStream tokens, string msg, string appendix) {
-    showError("ERROR", "\e[1;31m", "\e[31m", type.name, msg, *tokens.tokens, type.code, appendix);
-    for (lexer::TokenStream t : splitIncluded(tokens)) { note(t, "included from file: "_s + *t[0].include); }
+    showError("ERROR", "\e[1;31m", "\e[31m", type.name, msg, tokens, type.code, appendix);
+    noteIncludeMacro(tokens);
     errc++;
     if (one_error) { std::exit(3); }
 }
 
 void parser::error(ErrorType type, vector<lexer::Token> tokens, string msg, string appendix) {
-    showError("ERROR", "\e[1;31m", "\e[31m", type.name, msg, tokens, type.code, appendix);
-    for (lexer::TokenStream t : splitIncluded(lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens)))) {
-        note(t, "included from file: "_s + *t[0].include);
-    }
+    showError("ERROR",
+              "\e[1;31m",
+              "\e[31m",
+              type.name,
+              msg,
+              lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens)),
+              type.code,
+              appendix);
+    noteIncludeMacro(lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens)));
     errc++;
     if (one_error) { std::exit(3); }
 }
 
 void parser::warn(ErrorType type, lexer::TokenStream tokens, string msg, string appendix) {
-    showError("WARNING", "\e[1;33m", "\e[33m", type.name, msg, *tokens.tokens, type.code, appendix);
-    for (lexer::TokenStream t : splitIncluded(tokens)) { note(t, "included from file: "_s + *t[0].include); }
+    showError("WARNING", "\e[1;33m", "\e[33m", type.name, msg, tokens, type.code, appendix);
+    noteIncludeMacro(tokens);
     warnc++;
 }
 
 void parser::note(lexer::TokenStream tokens, string msg, string appendix) {
-    showError("NOTE", "\e[1;36m", "\e[36m", "", msg, *tokens.tokens, 0, appendix);
-}
-
-void parser::note(vector<lexer::Token> tokens, string msg, string appendix) {
     showError("NOTE", "\e[1;36m", "\e[36m", "", msg, tokens, 0, appendix);
 }
 
+void parser::note(vector<lexer::Token> tokens, string msg, string appendix) {
+    showError("NOTE",
+              "\e[1;36m",
+              "\e[36m",
+              "",
+              msg,
+              lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens)),
+              0,
+              appendix);
+}
+
 void parser::warn(parser::ErrorType type, vector<lexer::Token> tokens, string msg, string appendix) {
-    showError("WARNING", "\e[1;33m", "\e[33m", type.name, msg, tokens, type.code, appendix);
-    for (lexer::TokenStream t : splitIncluded(lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens)))) {
-        note(t, "included from file: "_s + *t[0].include);
-    }
+    showError("WARNING",
+              "\e[1;33m",
+              "\e[33m",
+              type.name,
+              msg,
+              lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens)),
+              type.code,
+              appendix);
+    noteIncludeMacro(lexer::TokenStream(make_shared<vector<lexer::Token>>(tokens)));
     warnc++;
 }
 
@@ -410,9 +436,9 @@ void parser::help(HelpBuffer buf, string msg, string appendix) {
         p = p->next.get();
     }
 
-    cerr << "\e[1;32mHELP:\e[0m @ \e]8;;file://" << filename << "\e\\\e[0;37m" << Module::directory.string() << "/\e[0m\e[1m"
-         << filename.substr(Module::directory.string().size() + 1) << ":" << line_start << ":" << column_start
-         << "\e[0m\e]8;;\e\\" << endl;
+    cerr << "\e[1;32mHELP:\e[0m @ \e]8;;file://" << filename << "\e\\\e[0;37m" << Module::directory.string()
+         << "/\e[0m\e[1m" << filename.substr(Module::directory.string().size() + 1) << ":" << line_start << ":"
+         << column_start << "\e[0m\e]8;;\e\\" << endl;
     cerr << msg << endl;
     cerr << "       | " << endl;
 
@@ -448,6 +474,7 @@ void parser::help(HelpBuffer buf, string msg, string appendix) {
     cerr << "       | " << endl;
     cerr << appendix << endl;
 }
+
 /*
 TEST_CASE ("testing help message", "[errors]") {
     parser::help("Hello"_h + "h" +

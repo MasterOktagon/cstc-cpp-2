@@ -14,6 +14,8 @@ using namespace std;
 /// related to tokenizing text into tokens.
 namespace lexer {
 
+    class TokenStream;
+    
     ///
     /// \brief Represents a single Token.
     ///
@@ -155,7 +157,7 @@ namespace lexer {
 
             sptr<string> filename;          ///< filename this token comes from
             sptr<string> line_contents;     ///< this tokens line's contents (for error messages)
-            sptr<string> include = nullptr; ///< included file this comes from
+            sptr<lexer::TokenStream> include = nullptr; ///< included file this comes from
 
             Token() = default;
 
@@ -167,7 +169,7 @@ namespace lexer {
                   sptr<string> filename,
                   sptr<string> line_contents,
                   sptr<Token>  expanded = nullptr,
-                  sptr<string> include  = nullptr);
+                  sptr<lexer::TokenStream> include  = nullptr);
 
             /// \brief construct a token from a type. ONLY FOR TEST CASES!
             Token(Type type) { this->type = type; }
@@ -183,6 +185,11 @@ namespace lexer {
             bool operator!=(Token other);
     };
 } // namespace lexer
+
+///
+/// \brief get the default name of a token type
+///
+string to_string(lexer::Token::Type t);
 
 const lexer::Token nullToken = lexer::Token(lexer::Token::NONE,
                                             "",
@@ -212,9 +219,9 @@ namespace lexer {
             ///
             /// Since we often need to search a token and then slice at its position, this class handles this.
             class Match final {
-                    uint64             at        = 0;       ///< where this result was found (relative index)
-                    bool               was_found = false;   ///< whether something was found
-                    sptr<TokenStream>  on        = nullptr; ///< on what stream it was found
+                    uint64            at        = 0;       ///< where this result was found (relative index)
+                    bool              was_found = false;   ///< whether something was found
+                    sptr<TokenStream> on        = nullptr; ///< on what stream it was found
 
                 public:
                     /// \brief construct a new Match
@@ -281,6 +288,10 @@ namespace lexer {
             ///
             uint64 size() const noexcept { return stop - start; }
 
+            /// \brief deepcopy this Tokenstream
+            ///
+            TokenStream copy();
+
             /// \brief check if this stream is empty
             ///
             bool empty() const noexcept { return size() == 0; }
@@ -322,7 +333,7 @@ namespace lexer {
             ///
             /// \param sep list of tokens to be seperated at
             /// \param allow_empty whether to allow empty blocks
-            vector<lexer::TokenStream> list(initializer_list<lexer::Token::Type> sep, bool allow_empty = false) const;
+            vector<lexer::TokenStream> list(initializer_list<lexer::Token::Type> sep, bool allow_empty = false, string what="Token") const;
 
             ///
             /// \brief remove the tokens between these indices
@@ -335,9 +346,13 @@ namespace lexer {
             /// \brief add the tokens of this stream to this stream
             ///
             /// \param index where to put it after
-            /// \param filename filename of the included file
             ///
-            void include(TokenStream t, usize idx, string filename);
+            void paste(TokenStream t, usize idx);
+
+            ///
+            /// \brief add the tokens replacing the old tokens using "include" fields
+            ///
+            void include(int64 start, int64 stop, lexer::TokenStream tokens);
 
             ///
             /// \brief default-construct an empty TokenStream
